@@ -1,4 +1,4 @@
-from language import Language
+from languages.language import Language
 import spacy
 
 
