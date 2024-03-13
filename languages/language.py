@@ -23,3 +23,10 @@ class Language:
         This should be implemented by a subclass.
         """
         raise NotImplementedError("This method should be implemented by subclass.")
+    
+    def parse_sent(self, sent:str):
+        """
+        Parse a sentence.
+        This should be implemented by a subclass.
+        """
+        raise NotImplementedError("This method should be implemented by subclass.")

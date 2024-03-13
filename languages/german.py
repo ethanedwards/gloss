@@ -18,7 +18,21 @@ class German(Language):
                     return token.morph
                 count += 1
         return "Problem with finding the word in the sentence."
-
+    
     def get_definition(self, word):
         # Placeholder for looking up a word in a German dictionary
         return "Looking up in German dictionary: " + word
+    
+    def parse_sent(self, sent: str):
+        outlist = []
+        doc = self.nlp(sent)
+        
+        for token in doc:
+            try:
+                outlist.append((str(token.text), str(token.lemma_), str(token.pos_), str(token.morph)))
+            except:
+                print("Error parsing German")
+        
+        return outlist
+    
+        

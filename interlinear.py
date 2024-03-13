@@ -2,6 +2,8 @@ import json
 from promptlibrary import promptlibrary
 from llm.claude import claude
 import asyncio
+from languages.language import Language
+from languages.german import German
 
 def parseInterlinear(gptoutput):
     outputlist = []
@@ -40,17 +42,7 @@ def zipsources(jsonfile, stopsource: str = None):
     return source_list, translation_list
 
 
-def getTranslations5(source_list, translation_list, llm, userprompt, systemprompt):
-    outputlist = []
-    for source, translation in zip(source_list, translation_list):
-        prompt = userprompt.format(german=source.strip(), english=translation.strip())
-        messages = llm.format_messages(userprompt=prompt, systemprompt=systemprompt)
-        output = llm.get_completion_async(messages=messages)
-        interlist = parseInterlinear(output)
-        outputlist.append({"source": source, "translation": translation, "interlinear": interlist, "rawoutput": output})
-    return outputlist
-
-async def getTranslations(source_list, translation_list, llm, userprompt, systemprompt):
+async def getTranslations(source_list, translation_list, llm, userprompt, systemprompt, language: Language = German()):
     outputlist = []
     async_requests = []
 
@@ -64,7 +56,8 @@ async def getTranslations(source_list, translation_list, llm, userprompt, system
 
     for source, translation, result in zip(source_list, translation_list, results):
         interlist = parseInterlinear(result)
-        outputlist.append({"source": source, "translation": translation, "interlinear": interlist, "rawoutput": result})
+        parseinfo = language.parse_sent(source)
+        outputlist.append({"source": source, "translation": translation, "interlinear": interlist, "parseinfo": parseinfo, "rawoutput": result})
 
     return outputlist
 
@@ -76,10 +69,10 @@ if __name__ == '__main__':
 
     llm = claude()
     
-    source_list, translation_list = zipsources("texts/aligned/hamann.json", stopsource="keine Zeichen denselben")
+    source_list, translation_list = zipsources("texts/aligned/hamannfirst.json")
     print("Getting translations")
     #translations = getTranslations(source_list, translation_list, llm, userprompt, systemprompt)
     translations = asyncio.run(getTranslations(source_list, translation_list, llm, userprompt, systemprompt))
     # print(translations)
-    with open("texts/interlinearouts/interlinearhamann.json", 'w', encoding='utf8') as file:
+    with open("texts/interlinearouts/interlinearhamannfirst.json", 'w', encoding='utf8') as file:
         json.dump(translations, file, ensure_ascii=False)
