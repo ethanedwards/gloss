@@ -19,7 +19,7 @@ def anthropic_proxy():
     
     response = llm.get_completion_sync(messages=messages)
     print(response)
-    return response
+    return jsonify(response=response)
 
 if __name__ == '__main__':
     app.run()

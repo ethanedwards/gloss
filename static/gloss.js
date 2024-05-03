@@ -4,8 +4,14 @@ document.getElementById('chatForm').addEventListener('submit', function (e) {
     
     if (studentText.trim() !== "") {
         addChatMessage('student', studentText);
-        generateTutorResponse(studentText); // Function to generate tutor's response
-        document.getElementById('studentInput').value = ''; // Reset input field
+        generateTutorResponse(studentText)
+            .then(() => {
+                document.getElementById('studentInput').value = ''; // Reset input field
+            })
+            .catch(error => {
+                console.error('Error generating tutor response:', error);
+                // Handle the error appropriately (e.g., display an error message to the user)
+            });
     }
 });
 
@@ -30,51 +36,29 @@ function addChatMessage(sender, text) {
 }
 
 function generateTutorResponse(studentText) {
-    // Placeholder for AI or some logic to generate a response
-    var context = ""
-    var highlightedText = window.getSelection();
-    
-    if (highlightedText) {
-      context = getPrompt(highlightedText);
-      console.log(context);
-    }
-    console.log(context);
+    return new Promise((resolve, reject) => {
+        var context = "";
+        var highlightedText = window.getSelection();
+        
+        if (highlightedText) {
+            context = getPrompt(highlightedText);
+            console.log(context);
+        }
+        console.log(context);
 
-    var system = "You are an German tutor, who explains the language to learners interested in reading literature in the language. You assume your students are familiar with grammatical terms in general, though not specifically German. You explain in detail and handle special cases. Student questions will often ask about specific phrases, which you will be given the context of, including the results of an automatic grammatical parser."
+        var system = "You are an German tutor, who explains the language to learners interested in reading literature in the language. You assume your students are familiar with grammatical terms in general, though not specifically German. You explain in detail and handle special cases. Student questions will often ask about specific phrases, which you will be given the context of, including the results of an automatic grammatical parser.";
 
-    prompt = context + "\n" + studentText;
-    tutorResponse = tutorRequest(prompt, system);
-    addChatMessage('tutor', tutorResponse);
-}
-
-function anthropicRequest(prompt, system){
-    const apiKey = '';
-    const requestData = {
-        model: 'claude-3-opus-20240229',
-        max_tokens: 1024,
-        system: system,
-        messages: [
-            { role: 'user', content: prompt }
-        ]
-    };
-
-    fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestData)
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log('Response:', data);
-        // Handle the response data as needed
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        // Handle the error as needed
+        prompt = context + "\n" + studentText;
+        tutorRequest(prompt, system)
+            .then(tutorResponse => {
+                console.log(tutorResponse);
+                addChatMessage('tutor', tutorResponse);
+                resolve();
+            })
+            .catch(error => {
+                console.error('Error generating tutor response:', error);
+                reject(error);
+            });
     });
 }
 
@@ -83,7 +67,7 @@ function tutorRequest(prompt, system) {
         content: prompt,
     };
 
-    fetch('/chatresponse', {
+    return fetch('/chatresponse', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -93,13 +77,11 @@ function tutorRequest(prompt, system) {
     .then(response => response.json())
     .then(data => {
         console.log('Response:', data);
-        // Handle the response data as needed
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        // Handle the error as needed
+        return data.response;
     });
 }
+
+
 
 var gloss = true;
 document.addEventListener('keydown', function(event) {

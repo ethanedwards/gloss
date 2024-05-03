@@ -1,5 +1,5 @@
 from .llm import llm
-import config
+import config as config
 import asyncio
 from anthropic import AsyncAnthropic, Anthropic
 from tenacity import (
@@ -39,6 +39,19 @@ class claude(llm):
     def get_completion_sync(self, messages:dict, model:str="claude-3-opus-20240229", max_tokens:int=1024, temperature:float=0.8):
         message = self.create_api_message(self.client, messages, model, max_tokens, temperature)
         return message.content[0].text
+    
+    async def get_completion_stream_async(self, messages:dict, model:str="claude-3-opus-20240229", max_tokens:int=1024, temperature:float=0.8, method=print):
+        system = messages[0]
+        messages = messages[1:]
+        stream = await self.aclient.messages.create(
+            max_tokens=max_tokens,
+            system=system,
+            messages=messages,
+            model=model,
+            stream=True,
+        )
+        async for event in stream:
+            method(event)
     
     def format_messages(self, userprompt:str, systemprompt:str='You are a helpful assistant'):
         #Put system prompt first, used in later function to remove it
