@@ -1,6 +1,7 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, Response
 from textcreation.llm.claude import claude
-import requests
+from anthropic.types import ContentBlockDeltaEvent
+import json
 
 llm = claude()
 
@@ -17,9 +18,12 @@ def anthropic_proxy():
     prompt = request_data['content']
     messages = llm.format_messages(userprompt=prompt, systemprompt=systemprompt)
     
-    response = llm.get_completion_sync(messages=messages)
-    print(response)
-    return jsonify(response=response)
+    def generate():
+        for event in llm.get_completion_stream_sync(messages=messages):
+            if isinstance(event, ContentBlockDeltaEvent):
+                yield f"data: {json.dumps({'text': event.delta.text})}\n\n"
+    
+    return Response(generate(), mimetype='text/event-stream')
 
 if __name__ == '__main__':
     app.run()

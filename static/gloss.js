@@ -1,3 +1,69 @@
+var currentselection = "a";
+
+function generateTutorResponse(studentText) {
+    return new Promise((resolve, reject) => {
+        var context = "";
+        //var highlightedText = window.getSelection();
+        try{
+            context = getPrompt(currentselection);
+        } catch (error) {
+            console.error('Error geting prompt:', error);
+            context = "";
+        }
+
+        var system = "You are an German tutor, who explains the language to learners interested in reading literature in the language. You assume your students are familiar with grammatical terms in general, though not specifically German. You explain in detail and handle special cases. Student questions will often ask about specific phrases, which you will be given the context of, including the results of an automatic grammatical parser.";
+
+        prompt = context + "\n" + studentText;
+        tutorRequest(prompt, system)
+            .then(() => {
+                resolve();
+            })
+            .catch(error => {
+                console.error('Error generating tutor response:', error);
+                reject(error);
+            });
+    });
+}
+
+function tutorRequest(prompt, system) {
+    const requestData = {
+        content: prompt,
+    };
+    return fetch('/chatresponse', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+
+        function readStream() {
+            return reader.read().then(({ done, value }) => {
+                if (done) {
+                    return;
+                }
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data:')) {
+                        const data = JSON.parse(line.substring(5));
+                        addChatMessage('tutor', data.text, true); // Append the text to the existing message
+                    }
+                }
+
+                return readStream();
+            });
+        }
+
+        return readStream();
+    });
+}
+
 document.getElementById('chatForm').addEventListener('submit', function (e) {
     e.preventDefault(); // Prevents form from refreshing the page
     const studentText = document.getElementById('studentInput').value;
@@ -15,96 +81,57 @@ document.getElementById('chatForm').addEventListener('submit', function (e) {
     }
 });
 
-function addChatMessage(sender, text) {
+function addChatMessage(sender, text, append = false) {
     const chatInterface = document.getElementById('chatInterface');
-    const newMessageDiv = document.createElement('div');
-    newMessageDiv.className = 'chat-message';
-    
-    const senderDiv = document.createElement('div');
-    senderDiv.className = sender;
-    senderDiv.textContent = sender.charAt(0).toUpperCase() + sender.slice(1) + ':';
-    
-    const textDiv = document.createElement('div');
-    textDiv.className = 'message-text';
-    textDiv.innerHTML = text; // Use innerHTML carefully to ensure text is properly escaped if coming from users
-    
-    newMessageDiv.appendChild(senderDiv);
-    newMessageDiv.appendChild(textDiv);
-    chatInterface.appendChild(newMessageDiv);
+    let messageDiv;
+
+    if (append && sender === 'tutor') {
+        messageDiv = chatInterface.querySelector('.chat-message.tutor:last-child');
+        if (messageDiv) {
+            const textDiv = messageDiv.querySelector('.message-text');
+            textDiv.innerHTML += text; // Append the new text to the existing message
+        } else {
+            messageDiv = null; // Create a new message if there is no existing tutor message
+        }
+    }
+
+    if (!messageDiv) {
+        messageDiv = document.createElement('div');
+        messageDiv.className = `chat-message ${sender}`;
+        
+        const senderDiv = document.createElement('div');
+        senderDiv.className = 'sender';
+        senderDiv.textContent = sender.charAt(0).toUpperCase() + sender.slice(1) + ':';
+        
+        const textDiv = document.createElement('div');
+        textDiv.className = 'message-text';
+        textDiv.innerHTML = text; // Use innerHTML carefully to ensure text is properly escaped if coming from users
+        
+        messageDiv.appendChild(senderDiv);
+        messageDiv.appendChild(textDiv);
+        chatInterface.appendChild(messageDiv);
+    }
     
     chatInterface.scrollTop = chatInterface.scrollHeight; // Scroll to latest message
 }
 
-function generateTutorResponse(studentText) {
-    return new Promise((resolve, reject) => {
-        var context = "";
-        var highlightedText = window.getSelection();
-        
-        if (highlightedText) {
-            context = getPrompt(highlightedText);
-            console.log(context);
-        }
-        console.log(context);
-
-        var system = "You are an German tutor, who explains the language to learners interested in reading literature in the language. You assume your students are familiar with grammatical terms in general, though not specifically German. You explain in detail and handle special cases. Student questions will often ask about specific phrases, which you will be given the context of, including the results of an automatic grammatical parser.";
-
-        prompt = context + "\n" + studentText;
-        tutorRequest(prompt, system)
-            .then(tutorResponse => {
-                console.log(tutorResponse);
-                addChatMessage('tutor', tutorResponse);
-                resolve();
-            })
-            .catch(error => {
-                console.error('Error generating tutor response:', error);
-                reject(error);
-            });
-    });
-}
-
-function tutorRequest(prompt, system) {
-    const requestData = {
-        content: prompt,
-    };
-
-    return fetch('/chatresponse', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestData)
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log('Response:', data);
-        return data.response;
-    });
-}
 
 
 
-var gloss = true;
+
+let gloss = false;
+
 document.addEventListener('keydown', function(event) {
-    // Check if the pressed key is 'a' or 'A'
-    if (event.key === 'a' || event.key === 'A') {
-        // Select all elements with the class name 'gloss'
+    // Check if the pressed key is 'a' or 'A' and the target is not the input field
+    if ((event.key === 'a' || event.key === 'A') && event.target.id !== 'studentInput') {
         const glossElements = document.querySelectorAll('.gloss');
         gloss = !gloss;
-        // Toggle the 'hidden-gloss' class for each gloss element
         glossElements.forEach(function(glossElement) {
-            if (glossElement.classList.contains('hidden-gloss')) {
-                // If the gloss is hidden (transparent), remove the class to show it
-                glossElement.classList.remove('hidden-gloss');
-            } else {
-                // If the gloss is shown, add the class to hide it
-                glossElement.classList.add('hidden-gloss');
-            }
-            if(gloss){
+            if (gloss) {
                 glossElement.classList.remove('hidden-gloss');
             } else {
                 glossElement.classList.add('hidden-gloss');
             }
-
         });
     }
 });
@@ -114,14 +141,9 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
     words.forEach(word => {
         word.addEventListener('click', function() {
-            // Get the .gloss element within the clicked .word
             const gloss = this.querySelector('.gloss');
             if (gloss && gloss.classList.contains('hidden-gloss')) {
-                // Make .gloss visible (by removing 'hidden-gloss' class) if it is hidden
                 gloss.classList.remove('hidden-gloss');
-            } else {
-                // Optionally, hide .gloss again if it was already visible
-                // gloss.classList.add('hidden-gloss'); // Uncomment this line if needed
             }
         });
     });
@@ -130,27 +152,36 @@ document.addEventListener('DOMContentLoaded', (event) => {
 document.addEventListener('mouseup', function() {
     var highlightedText = window.getSelection();
     if (highlightedText) {
-      displayHighlightedText(getElements(highlightedText)[0]);
+        if(getElements(highlightedText)[0] != ""){
+            
+            currentselection = getElements(highlightedText);
+            displayHighlightedText(getElements(highlightedText)[0]);
+        }
     }
-  });
+});
 
 function displayHighlightedText(text) {
     var container = document.getElementById('highlightedTextContainer');
-    container.textContent = text; // Update the container with the highlighted text
-  }
-  
-  document.addEventListener('copy', function(event) {
+    container.textContent = text;
+}
+
+document.addEventListener('copy', function(event) {
     let selection = window.getSelection();
-    if (!selection.rangeCount) return; // No selection, exit
+    if (!selection.rangeCount) return;
 
-    // Create the final output text
-let finalCopyText = getPrompt(selection);
+    let finalCopyText = getPrompt(getElements(selection));
 
-    // Prevent the default copy action
     event.preventDefault();
-
-    // Set the final text as the clipboard data
     event.clipboardData.setData('text/plain', finalCopyText);
+});
+
+// Prevent the chat interface from losing focus when clicked
+document.getElementById('chatInterface').addEventListener('mousedown', function(event) {
+    event.preventDefault();
+});
+
+document.getElementById('studentInput').addEventListener('mousedown', function(event) {
+    event.target.focus();
 });
 
 
@@ -229,9 +260,8 @@ returnlist = [selectedTextJoined, annotatedTextJoined, sourceSentencesJoined, tr
 return returnlist;
 }
 
-function getPrompt(selection){
+function getPrompt(elements){
     
-    elements = getElements(selection);
     let finalCopyText = `Translated sentences: ${elements[3]}
     Source sentences: ${elements[2]}
     
