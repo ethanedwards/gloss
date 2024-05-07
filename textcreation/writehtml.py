@@ -155,7 +155,7 @@ def text_to_html(text):
 
 stringthreshhold = 0.8
 
-with open(f'texts/html/hamannfirst2.html', 'w', encoding='utf-8') as file:
+with open(f'textcreation/texts/html/inferno1.html', 'w', encoding='utf-8') as file:
     file.write("""
 <!DOCTYPE html>
 <html>
@@ -254,7 +254,7 @@ button {
         <div class="word-group">
     """)
 
-    file.write(processInterlinear(getJSON("texts/interlinearouts/interlinearhamannfirst.json")))
+    file.write(processInterlinear(getJSON("textcreation/texts/interlinearouts/interlinearinferno.json")))
 
     file.write("""
     </div>
@@ -283,8 +283,8 @@ document.addEventListener('keydown', function(event) {
 </body>
 </html>
     """)
-serializable_dict = {str(key): value for key, value in pair_count.items()}
+#serializable_dict = {str(key): value for key, value in pair_count.items()}
 
 # Now you can dump this dictionary into a JSON file
-with open(paircountfile, 'w') as f:
-    json.dump(serializable_dict, f, ensure_ascii=False)
+#with open(paircountfile, 'w') as f:
+#    json.dump(serializable_dict, f, ensure_ascii=False)

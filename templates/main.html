@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gloss - AI-Assisted Foreign Language Reading</title>
+    <style>
+        body {
+            background-color: #e0f2f1;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        
+        .container {
+            max-width: 600px;
+            padding: 20px;
+        }
+        
+        h1 {
+            color: #004d40;
+        }
+        
+        p {
+            color: #00695c;
+        }
+        
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #00897b;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 25px;
+            margin: 10px;
+            transition: background-color 0.3s;
+        }
+        
+        .button:hover {
+            background-color: #00695c;
+        }
+
+        .button-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gloss</h1>
+        <p>Gloss is a new way to read foreign languages using AI. It combines insights from global traditions of literacy and the latest in Large Language Models to facilitate an encounter with a text in its original idiom without any prior study.</p>
+        <p>The project is currently in development by <a href="https://ethanedwards.substack.com/">Ethan Edwards</a>.</p>
+        <p>Check out our demo excerpts</p>
+        <a href="{{ url_for('inferno1') }}" class="button">Inferno</a>
+        <br>
+        <br>
+        <br>
+        <p>Follow the Project</p>
+        <div class="button-container">
+            <a href="#" class="button">Request a text or become a beta reader</a>
+        </div>
+    </div>
+</body>
+</html>

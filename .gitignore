@@ -3,3 +3,4 @@ languages/__pycache__/
 .env
 texts/
 .DS_Store
+.venv/

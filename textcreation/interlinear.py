@@ -4,6 +4,7 @@ from llm.claude import claude
 import asyncio
 from languages.language import Language
 from languages.german import German
+from languages.italian import Italian
 
 def parseInterlinear(gptoutput):
     outputlist = []
@@ -47,7 +48,7 @@ async def getTranslations(source_list, translation_list, llm, userprompt, system
     async_requests = []
 
     for source, translation in zip(source_list, translation_list):
-        prompt = userprompt.format(german=source.strip(), english=translation.strip())
+        prompt = userprompt.format(italian=source.strip(), english=translation.strip())
         messages = llm.format_messages(userprompt=prompt, systemprompt=systemprompt)
         async_request = llm.get_completion_async(messages=messages)
         print("async request")
@@ -63,16 +64,16 @@ async def getTranslations(source_list, translation_list, llm, userprompt, system
 
 if __name__ == '__main__':
     #load yml file for prompts
-    lib = promptlibrary("promptlibrary.yml")
-    userprompt = lib.find_prompt_by_title("InterlinearUserGerman")
-    systemprompt = lib.find_prompt_by_title("InterlinearSystemGerman")
+    lib = promptlibrary("textcreation/promptlibrary.yml")
+    userprompt = lib.find_prompt_by_title("InterlinearUserItalian")
+    systemprompt = lib.find_prompt_by_title("InterlinearSystemItalian")
 
     llm = claude()
     
-    source_list, translation_list = zipsources("texts/aligned/hamannfirst.json")
+    source_list, translation_list = zipsources("textcreation/texts/aligned/Inferno.json")
     print("Getting translations")
     #translations = getTranslations(source_list, translation_list, llm, userprompt, systemprompt)
-    translations = asyncio.run(getTranslations(source_list, translation_list, llm, userprompt, systemprompt))
+    translations = asyncio.run(getTranslations(source_list, translation_list, llm, userprompt, systemprompt, language=Italian()))
     # print(translations)
-    with open("texts/interlinearouts/interlinearhamannfirst.json", 'w', encoding='utf8') as file:
+    with open("textcreation/texts/interlinearouts/interlinearinferno.json", 'w', encoding='utf8') as file:
         json.dump(translations, file, ensure_ascii=False)
