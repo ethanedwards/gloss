@@ -1,5 +1,6 @@
 from .llm import llm
-from .. import config
+#import config.py
+import config
 import asyncio
 from anthropic import AsyncAnthropic, Anthropic
 from tenacity import (

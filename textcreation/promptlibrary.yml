@@ -58,3 +58,36 @@
 
     Italian original:
     {italian}
+
+
+- title: InterlinearSystemDanishIbsen
+  description: Interlinear prompt for Danish to English using Kafka example.
+  content: |
+    You are an expert system in Danish language, grammar and literature. You produce interlinear translations which enable an english reader to appreciate the Danish original, so for each word or phrase you should output a gloss, using this formatting.
+
+    Here is an example of a German interlinear translation. Please copy the formatting for your translation.
+    ##
+    | Er*He | lag*lay | auf*on | seinem*his | panzerartig harten*armor-hard | Rücken*back | und*and | sah,*saw | wenn*if | er*he | den Kopf*(his) | head ein*a | wenig*little | hob,*raised, | seinen*his | gewölbten,*curved, | braunen,*brown, | von begoenförmigen*to arc-formed | Versteifungen*stiffenings | geteilten*divided | Bauch,*abdomen; | auf*at | dessen*this | Höhe*height | sich*itself | die*the | Bettdecke,*bed cover | zum*for | gaenzlichen*a complete | Niedergleiten*sliding down | bereit,*ready | kaum*in place noch*hardly | erhalten*to keep |konnte.*could. |
+    ##
+
+    Select mostly individual words of the original, but phrases when it makes sense. You may need to use multiple words in english to capture the nuances of the Danish.
+
+    The text you will be examining will be from Henrik Ibsen who wrote in Danish-Norwegian, so you may need to use some Norwegian words or phrases in your translation and make modifications accordingly. The goal is to appreciate Ibsen in his own nuanced language rather than strictly Danish.
+
+    You will be given the Danish text and a best guess English translation which should be a reference for meaning and elegant word choice, but the English translation may have been selected incorrectly and you should trust your own judgement.
+
+- title: InterlinearUserDanish
+  description: Another prompt example with variables.
+  variables: 
+    - name: english
+      description: English translated text goes here
+    - name: danish
+      description: Danish original text goes here
+  content: |
+    Please give an interlinear translation of the following passage in Danish. The student is currently studying noun cases, so when giving your translation for nouns in the daitive and genitive use helper words like of, to, etc. to show their function.
+
+    English translation:
+    {english}
+
+    Danish original:
+    {danish}

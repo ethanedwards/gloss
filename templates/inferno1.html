@@ -3,16 +3,20 @@
 <html>
 <head>
 <link rel="stylesheet" href="{{ url_for('static', filename='gloss.css') }}">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
+<html>
 
+<body>
+<div class="main-container">
+    <title>Inferno - Dante</title>
+<h1>Inferno - Dante</h1>
 <p>This is a demonstration of an early version of Gloss featuring the text of Canto I of Dante's Inferno.</p>
-<p>Hide or show all English glosses with the "a" key.</p>
 <p>Reveal meanings of individual words by clicking on them.</p>
 <p>Hover over to reveal grammatical information.</p>
 <p>Highlight text to bring it to the attention of the tutor program.</p>
 <p>Ask the tutor program questions about the language or for help with the interface.</p>
 
-<body>
     <div class="interlinear-container">    
         <div class="word-group">
     
@@ -18644,24 +18648,41 @@ Then he set out, and I followed after him.</div>
                 
     </div>
 </div>
+
+</div>
+<div class="mobile-container">
+<div class="button-bar">
+    <button id="toggleGlossButton">Toggle Translation</button>
+    <!-- Add more buttons as needed -->
+</div>
+
 <div class="chat-container">
     <!-- Chat Interface -->
     <div class="chat-interface" id="chatInterface">
         <!-- Messages will populate here -->
     </div>
     
-    <div id="highlightedTextContainer"></div>
+    <div id="highlightedTextContainer">
+        <label for="highlightedText">Highlighted Text:</label>
+        <div id="highlightedText"></div>
+    </div>
 
     <!-- Input Form -->
     <div class="input-form-container">
         <form id="chatForm">
-            <input type="text" id="studentInput" placeholder="Type your question..." />
-            <button type="submit">Send</button>
+            <div class="input-wrapper">
+                <textarea id="studentInput" placeholder="Type your question..." rows="1"></textarea>
+            </div>
+            <div class="button-wrapper">
+                <button type="submit">Send</button>
+            </div>
         </form>
     </div>
+</div>
 </div>
 
 <script src="{{ url_for('static', filename='gloss.js') }}"></script> <!-- Ensure your JavaScript file's path is correct -->
 </body>
 </html>
+    
     
