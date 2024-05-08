@@ -167,10 +167,11 @@ document.addEventListener('mouseup', function() {
     highlightText();
 });
 
+/*
 document.addEventListener('touchend', function() {
     highlightText();
 });
-
+*/
 function displayHighlightedText(text) {
     var highlightedTextElement = document.getElementById('highlightedText');
     highlightedTextElement.textContent = text;
