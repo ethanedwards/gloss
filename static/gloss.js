@@ -205,19 +205,22 @@ function isElementInViewport(element) {
 }
 
 // Create an Intersection Observer
-const observer = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-        if (entry.isIntersecting) {
-            updateHighlightedText();
-        }
-    });
-}, { threshold: 0.5 }); // Adjust the threshold as needed
+const isMobile = window.innerWidth <= 768; // Check if it's mobile view
+if(isMobile){
+    const observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                updateHighlightedText();
+            }
+        });
+    }, { threshold: 0.5 }); // Adjust the threshold as needed
 
-// Observe each word element
-const words = document.querySelectorAll('.word');
-words.forEach(word => {
-    observer.observe(word);
-});
+    // Observe each word element
+    const words = document.querySelectorAll('.word');
+    words.forEach(word => {
+        observer.observe(word);
+    });
+}
 
 
 

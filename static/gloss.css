@@ -152,6 +152,7 @@ button {
     right: 0;
     margin-left: auto;
     height: auto; /* Let it be as tall as its content */
+    overflow-y: auto;
 }
 
 
@@ -161,7 +162,7 @@ button {
 
 
 .chat-interface {
-    max-height: 100vh; /* Maximum height to the viewport height */
+    max-height: 60vh; /* Maximum height to the viewport height */
     overflow-y: auto; /* Scroll inside if content is taller than the viewport */
     user-select: none; /* Prevent text selection */
 }
@@ -226,10 +227,12 @@ button {
         float: none;
     }
 
-    .mobile-interface {
+    .mobile-container {
         width: 100%;
-        height: 50vh; /* Adjust the height as needed */
+        height: 40vh; /* Adjust the height as needed */
         position: fixed;
+        display: flex;
+        flex-direction: column;
         bottom: 0;
         left: 0;
         background-color: #f0f0f0; /* Adjust the background color as needed */
@@ -239,17 +242,37 @@ button {
 
     .button-bar {
         position: static;
+        order: 0;
         margin-bottom: 10px;
+    }
+
+    .highlighted-text-container {
+        order: 2;
     }
 
     .chat-container {
         width: 100%;
         position: static;
+        display: flex;
+        flex-direction: column;
         height: auto;
         margin-left: 0;
+        order: 4;
     }
 
-    .chat-interface {
-        max-height: none;
+    .input-form-container{
+        margin-left: 1%;
+
+        order: 0;
+    }
+
+    .button-wrapper {
+        margin-right: 2%;
+    };
+
+    .chat-interface{
+        order: 4;
+        max-height:none;
+        display: flex;
     }
 }
