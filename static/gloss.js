@@ -140,6 +140,15 @@ document.addEventListener('DOMContentLoaded', (event) => {
                 }
             }
         });
+        word.addEventListener('touchstart', function() {
+            const gloss = this.querySelector('.gloss');
+            if (gloss) {
+                gloss.classList.toggle('permanent-gloss');
+                if (gloss.classList.contains('hidden-gloss')) {
+                    gloss.classList.remove('hidden-gloss');
+                }
+            }
+        });
     });
 });
 
@@ -164,7 +173,9 @@ function highlightText(){
 }
 
 document.addEventListener('mouseup', function() {
-    highlightText();
+    if(!isMobile){
+        highlightText();
+    }
 });
 
 /*
@@ -401,6 +412,13 @@ document.addEventListener('DOMContentLoaded', (event) => {
             }
         });
 
+        word.addEventListener('touchstart', function() {
+            const gloss = this.querySelector('.gloss');
+            if (gloss && gloss.classList.contains('hidden-gloss')) {
+                gloss.classList.remove('hidden-gloss');
+            }
+        });
+
         handleLongPress(word, function() {
             let range = document.createRange();
             range.selectNodeContents(word);
@@ -423,10 +441,17 @@ function getElementsMobile(words) {
     let annotatedText = [];
     let selectedText = []; // This will hold just the selected word strings
 
+
+    //TODO make this better
+    prevword = "";
+
     words.forEach(word => {
         const wordElements = document.querySelectorAll('.interlinear-container .word');
         wordElements.forEach(wordEl => {
-            if (wordEl.textContent.trim() === word) {
+            if (prevword == word) {
+                //Repeated word   
+            }
+            else if (wordEl.textContent.trim() === word) {
                 let titleText = wordEl.getAttribute('title') ? wordEl.getAttribute('title').trim() : '';
                 let glossText = wordEl.querySelector('.gloss') ? wordEl.querySelector('.gloss').textContent.trim() : '';
                 let dictText = wordEl.querySelector('.dictionary') ? wordEl.querySelector('.dictionary').textContent.trim() : '';
@@ -451,6 +476,7 @@ function getElementsMobile(words) {
                 if (!translatedSentences.includes(transSent)) {
                     translatedSentences.push(transSent);
                 }
+                prevword = word;
             }
         });
     });
@@ -460,7 +486,6 @@ function getElementsMobile(words) {
     let sourceSentencesJoined = sourceSentences.join(' ');
     let annotatedTextJoined = annotatedText.join('**');
     let selectedTextJoined = selectedText.join(' ');
-
     returnlist = [selectedTextJoined, annotatedTextJoined, sourceSentencesJoined, translatedSentencesJoined];
 
     return returnlist;

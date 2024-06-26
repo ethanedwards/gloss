@@ -34,6 +34,7 @@ class claude(llm):
         message = await self.create_api_message(self.aclient, messages, model, max_tokens, temperature)
         # Use the event loop associated with the TokenBucket
         self.requestcount -= 1
+        print("Request count: ", self.requestcount)
         return message.content[0].text
     
     @retry(wait=wait_random_exponential(min=5, max=60), stop=stop_after_attempt(6))
@@ -73,6 +74,14 @@ class claude(llm):
             systemprompt,
             {"role": "user", "content": userprompt}
         ]
+    
+    def format_messages_buffer(self, buffer:list, systemprompt:str='You are a helpful assistant'):
+        messages = [
+            systemprompt
+        ]
+        for item in buffer:
+            messages.append({"role": item["role"], "content": item["content"]})
+        return messages
     
     def create_api_message(self, cli, messages:dict, model:str="claude-3-opus-20240229", max_tokens:int=1024, temperature:float=0.8):
         #Remove the system prompt

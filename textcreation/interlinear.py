@@ -1,10 +1,12 @@
 import json
 from promptlibrary import promptlibrary
 from llm.claude import claude
+import tqdm
 import asyncio
 from languages.language import Language
 from languages.german import German
 from languages.italian import Italian
+from languages.hindi import Hindi
 from languages.danish import Danish
 
 def parseInterlinear(gptoutput):
@@ -48,12 +50,15 @@ async def getTranslations(source_list, translation_list, llm, userprompt, system
     outputlist = []
     async_requests = []
 
-    for source, translation in zip(source_list, translation_list):
-        prompt = userprompt.format(danish=source.strip(), english=translation.strip())
+    for source, translation in zip(source_list[:200], translation_list[:200]):
+        prompt = userprompt.format(italian=source.strip(), english=translation.strip())
         messages = llm.format_messages(userprompt=prompt, systemprompt=systemprompt)
         async_request = llm.get_completion_async(messages=messages)
         print("async request")
         async_requests.append(async_request)
+    
+
+     
     results = await asyncio.gather(*async_requests)
 
     for source, translation, result in zip(source_list, translation_list, results):
@@ -63,18 +68,44 @@ async def getTranslations(source_list, translation_list, llm, userprompt, system
 
     return outputlist
 
+def getTranslationsResults(llmout, source, translation, language):
+    result = llmout
+    interlist = parseInterlinear(result)
+    parseinfo = language.parse_sent(source)
+    return {"source": source, "translation": translation, "interlinear": interlist, "parseinfo": parseinfo, "rawoutput": result}
+
+def parseHindi():
+    llmouts = open("textcreation/texts/interlinearouts/neeleneele.txt", 'r').read()
+    llmouts = llmouts.split("##")
+    sources = open("textcreation/texts/interlinearouts/neeleneeleog.txt", 'r').read()
+    sources = sources.split("##")
+    translations = open("textcreation/texts/interlinearouts/neeleneeleeng.txt", 'r').read()
+    translations = translations.split("##")
+    outputlist = []
+    for source, translation, llmout in zip(sources, translations, llmouts):
+        combo = getTranslationsResults(llmout, source, translation, Hindi())
+        outputlist.append(combo)
+    return outputlist
+
 if __name__ == '__main__':
     #load yml file for prompts
     lib = promptlibrary("textcreation/promptlibrary.yml")
-    userprompt = lib.find_prompt_by_title("InterlinearUserDanish")
-    systemprompt = lib.find_prompt_by_title("InterlinearSystemDanish")
+    userprompt = lib.find_prompt_by_title("InterlinearUserItalian")
+    systemprompt = lib.find_prompt_by_title("InterlinearSystemItalian")
 
     llm = claude()
     
-    source_list, translation_list = zipsources("textcreation/texts/aligned/Vildanden.json")
+    source_list, translation_list = zipsources("textcreation/texts/aligned/lahiri2.json")
     print("Getting translations")
     #translations = getTranslations(source_list, translation_list, llm, userprompt, systemprompt)
-    translations = asyncio.run(getTranslations(source_list, translation_list, llm, userprompt, systemprompt, language=Danish()))
+    translations = asyncio.run(getTranslations(source_list, translation_list, llm, userprompt, systemprompt, language=Italian()))
     # print(translations)
-    with open("textcreation/texts/interlinearouts/interlinearibsen.json", 'w', encoding='utf8') as file:
+    with open("textcreation/texts/interlinearouts/interlinearlahiri2.json", 'w', encoding='utf8') as file:
         json.dump(translations, file, ensure_ascii=False)
+
+
+
+    # translations = parseHindi()
+
+    # with open("textcreation/texts/interlinearouts/neeleneele.json", 'w', encoding='utf8') as file:
+    #     json.dump(translations, file, ensure_ascii=False)

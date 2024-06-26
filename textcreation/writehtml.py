@@ -8,6 +8,8 @@ import os
 #paircount file
 paircountfile = "paircount.json"
 
+stringthreshhold = 0.8
+
 # Initialize a dictionary to keep track of Italian-English pair appearances
 pair_count = {}
 if os.path.exists(paircountfile):
@@ -84,10 +86,13 @@ def processSource(entry):
                 word = element
                 #Get interlinear gloss, needs to be able to handle multiple words
                 interlineargloss = ""
+                interlinearalt = ""
+                interlinearlit = ""
                 for j, gloss in enumerate(interlinear):
                     #Strip gloss of trailing whitespace
                     gloss[0] = gloss[0].strip()
                     firstword = gloss[0].split(" ")[0]
+                    #print("comparison is " + firstword + " and " + element)
                     if string_similarity_normal(firstword, element) > stringthreshhold:
                         #Go forward and get all words in the rest of the phrase
                         #Should do nothing if only one word
@@ -107,7 +112,13 @@ def processSource(entry):
                                     forwardindexlookahead += 2
                                 forwardindex+=1
                         try:
+                            #print("Got gloss " + gloss[0] + " for word " + word + " gloss 1 is " + gloss[1])
                             interlineargloss = gloss[1]
+                            #check if there are any other glosses
+                            if len(gloss) > 2:
+                                interlinearalt = gloss[2]
+                            if len(gloss) > 3:
+                                interlinearlit = gloss[3]
                             interlinear.pop(j)
                             #Break out of for loop
                         except:
@@ -130,6 +141,8 @@ def processSource(entry):
                 <div class="word" title="{grammar}">
                     {word}
                     <div class="gloss">{interlineargloss}</div>
+                    <div class="alt">{interlinearalt}</div>
+                    <div class="lit">{interlinearlit}</div>
                     <div class="pos">{pos}</div>
                     <div class="dictionary">{dictionaryforms}</div>
                     <div class="sourcesentence">{text}</div>
@@ -153,138 +166,149 @@ def text_to_html(text):
     return html_text
 
 
-stringthreshhold = 0.8
+def write_html_interlinear(jsonfile, htmltemplate, htmlfileout):
+    interlineartext = processInterlinear(getJSON(jsonfile))
+    htmltext = open(htmltemplate, 'r').read()
+    htmltext = htmltext.replace("{{interlinear}}", interlineartext)
+    with open(htmlfileout, 'w', encoding='utf-8') as file:
+        file.write(htmltext)
 
-with open(f'textcreation/texts/html/inferno1.html', 'w', encoding='utf-8') as file:
-    file.write("""
-<!DOCTYPE html>
-<html>
-<head>
-<style>
-.interlinear-container {
-    direction: ltr;
-    margin: 0 120px;
-}
 
-.word-group {
-    display: flex;
-    flex-flow: row wrap;
-    /* If you want a gap between word groups */
-    margin-bottom: 20px; /* Adjust as necessary */
-}
 
-/* Increase the font size of the main word container */
-.interlinear-container .word {
-    padding: 10px;
-    font-size: 1.2em; /* Adjust the size as needed */
-}
+# with open(f'textcreation/texts/html/inferno1.html', 'w', encoding='utf-8') as file:
+#     file.write("""
+# <!DOCTYPE html>
+# <html>
+# <head>
+# <style>
+# .interlinear-container {
+#     direction: ltr;
+#     margin: 0 120px;
+# }
 
-/* Decrease the font size of gloss */
-.interlinear-container .word .gloss {
-    display: block;
-    font-size: 0.8em; /* Adjust the size as needed */
-    user-select: none;
-}
+# .word-group {
+#     display: flex;
+#     flex-flow: row wrap;
+#     /* If you want a gap between word groups */
+#     margin-bottom: 20px; /* Adjust as necessary */
+# }
 
-/* Shrink the font size and change alignment of grammar */
-.interlinear-container .word .grammar {
-    display: block;
-    font-size: 0.6em; /* Adjust the size as needed */
-    text-align: right; /* Aligns text to the right */
-    user-select: none;
-}
+# /* Increase the font size of the main word container */
+# .interlinear-container .word {
+#     padding: 10px;
+#     font-size: 1.2em; /* Adjust the size as needed */
+# }
 
-/* Hide pos and dictionary completely */
-.interlinear-container .word .pos,
-.interlinear-container .word .dictionary,
-.interlinear-container .word .sourcesentence,
-.interlinear-container .word .translation {
-    display: none;
-    user-select: none;
-}
+# /* Decrease the font size of gloss */
+# .interlinear-container .word .gloss {
+#     display: block;
+#     font-size: 0.8em; /* Adjust the size as needed */
+#     user-select: none;
+# }
+
+# /* Shrink the font size and change alignment of grammar */
+# .interlinear-container .word .grammar {
+#     display: block;
+#     font-size: 0.6em; /* Adjust the size as needed */
+#     text-align: right; /* Aligns text to the right */
+#     user-select: none;
+# }
+
+# /* Hide pos and dictionary completely */
+# .interlinear-container .word .pos,
+# .interlinear-container .word .dictionary,
+# .interlinear-container .word .sourcesentence,
+# .interlinear-container .word .translation {
+#     display: none;
+#     user-select: none;
+# }
                
-.chat-interface {
-    width: 25%; /* Adjust based on your preference */
-    padding: 20px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    max-height: 600px; /* Or whatever height matches your design */
-    overflow-y: auto; /* Enable scrollbar if the content overflows */
-    float: right;
-}
+# .chat-interface {
+#     width: 25%; /* Adjust based on your preference */
+#     padding: 20px;
+#     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+#     max-height: 600px; /* Or whatever height matches your design */
+#     overflow-y: auto; /* Enable scrollbar if the content overflows */
+#     float: right;
+# }
 
-.chat-message {
-    margin-bottom: 20px;
-    padding: 10px;
-    background-color: #f0f0f0;
-    border-radius: 10px;
-}
+# .chat-message {
+#     margin-bottom: 20px;
+#     padding: 10px;
+#     background-color: #f0f0f0;
+#     border-radius: 10px;
+# }
 
-.tutor, .student {
-    font-weight: bold;
-}
+# .tutor, .student {
+#     font-weight: bold;
+# }
 
-.message-text {
-    margin-top: 5px;
-}
+# .message-text {
+#     margin-top: 5px;
+# }
                
-.chat-input {
-    display: flex;
-    justify-content: space-between;
-    padding: 10px;
-}
+# .chat-input {
+#     display: flex;
+#     justify-content: space-between;
+#     padding: 10px;
+# }
 
-#studentInput {
-    width: 80%;
-    margin-right: 10px;
-}
+# #studentInput {
+#     width: 80%;
+#     margin-right: 10px;
+# }
 
-button {
-    width: 18%;
-    cursor: pointer;
-}
-.hidden-gloss {
-    color: transparent; /* Makes the text transparent */
-}
+# button {
+#     width: 18%;
+#     cursor: pointer;
+# }
+# .hidden-gloss {
+#     color: transparent; /* Makes the text transparent */
+# }
 
-</style>
-</head>
+# </style>
+# </head>
 
-<body>
-    <div class="interlinear-container">    
-        <div class="word-group">
-    """)
+# <body>
+#     <div class="interlinear-container">    
+#         <div class="word-group">
+#     """)
 
-    file.write(processInterlinear(getJSON("textcreation/texts/interlinearouts/interlinearinferno.json")))
+#     file.write(processInterlinear(getJSON("textcreation/texts/interlinearouts/interlinearinferno.json")))
 
-    file.write("""
-    </div>
-</div>
-<script>
-document.addEventListener('keydown', function(event) {
-    // Check if the pressed key is 'a' or 'A'
-    if (event.key === 'a' || event.key === 'A') {
-        // Select all elements with the class name 'gloss'
-        const glossElements = document.querySelectorAll('.gloss');
+#     file.write("""
+#     </div>
+# </div>
+# <script>
+# document.addEventListener('keydown', function(event) {
+#     // Check if the pressed key is 'a' or 'A'
+#     if (event.key === 'a' || event.key === 'A') {
+#         // Select all elements with the class name 'gloss'
+#         const glossElements = document.querySelectorAll('.gloss');
 
-        // Toggle the 'hidden-gloss' class for each gloss element
-        glossElements.forEach(function(glossElement) {
-            if (glossElement.classList.contains('hidden-gloss')) {
-                // If the gloss is hidden (transparent), remove the class to show it
-                glossElement.classList.remove('hidden-gloss');
-            } else {
-                // If the gloss is shown, add the class to hide it
-                glossElement.classList.add('hidden-gloss');
-            }
-        });
-    }
-});
-</script>
-<script src="chat-script.js"></script>
-</body>
-</html>
-    """)
-#serializable_dict = {str(key): value for key, value in pair_count.items()}
+#         // Toggle the 'hidden-gloss' class for each gloss element
+#         glossElements.forEach(function(glossElement) {
+#             if (glossElement.classList.contains('hidden-gloss')) {
+#                 // If the gloss is hidden (transparent), remove the class to show it
+#                 glossElement.classList.remove('hidden-gloss');
+#             } else {
+#                 // If the gloss is shown, add the class to hide it
+#                 glossElement.classList.add('hidden-gloss');
+#             }
+#         });
+#     }
+# });
+# </script>
+# <script src="chat-script.js"></script>
+# </body>
+# </html>
+#     """)
+# #serializable_dict = {str(key): value for key, value in pair_count.items()}
 
-# Now you can dump this dictionary into a JSON file
-#with open(paircountfile, 'w') as f:
-#    json.dump(serializable_dict, f, ensure_ascii=False)
+# # Now you can dump this dictionary into a JSON file
+# #with open(paircountfile, 'w') as f:
+# #    json.dump(serializable_dict, f, ensure_ascii=False)
+
+
+write_html_interlinear("textcreation/texts/interlinearouts/interlinearlahiri2.json", "textcreation/texts/templates/infernotemplate.html", "templates/lahiri.html")
+#write_html_interlinear("textcreation/texts/interlinearouts/interlinearibsen2.json", "textcreation/texts/templates/infernotemplate.html", "templates/ibsen.html")

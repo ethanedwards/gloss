@@ -18,3 +18,6 @@ class llm:
 
     def format_messages(userprompt:str, systemprompt:str):
         raise NotImplementedError("This method should be implemented by subclass.")
+    
+    def format_messages_buffer(buffer:list, systemprompt:str):
+        raise NotImplementedError("This method should be implemented by subclass.")
