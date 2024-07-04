@@ -2,10 +2,47 @@ from flask import Flask, request, jsonify, render_template, Response
 from textcreation.llm.claude import claude
 from anthropic.types import ContentBlockDeltaEvent
 import json
+import os
+from flask_sqlalchemy import SQLAlchemy
 
 llm = claude()
 
 app = Flask(__name__)
+
+
+# File to store click counts
+CLICK_COUNTS_FILE = 'click_counts.json'
+
+# Load click counts from file or initialize empty dictionary
+if os.path.exists(CLICK_COUNTS_FILE):
+    with open(CLICK_COUNTS_FILE, 'r') as f:
+        click_counts = json.load(f)
+else:
+    click_counts = {}
+
+
+@app.route('/update_click', methods=['POST'])
+def update_click():
+    data = request.json
+    lemma = data['lemma']
+    pos = data['pos']
+    key = f"{lemma}|{pos}"
+    
+    if key in click_counts:
+        click_counts[key] += 1
+    else:
+        click_counts[key] = 1
+    
+    # Save updated click counts to file
+    with open(CLICK_COUNTS_FILE, 'w') as f:
+        json.dump(click_counts, f)
+    
+    return jsonify({'success': True, 'clicks': click_counts[key]})
+
+@app.route('/get_click_counts', methods=['GET'])
+def get_click_counts():
+    return jsonify(click_counts)
+
 
 conversation_buffer = []
 

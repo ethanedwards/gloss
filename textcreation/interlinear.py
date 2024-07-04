@@ -1,7 +1,7 @@
 import json
 from promptlibrary import promptlibrary
 from llm.claude import claude
-import tqdm
+from tqdm import tqdm
 import asyncio
 from languages.language import Language
 from languages.german import German
@@ -46,22 +46,26 @@ def zipsources(jsonfile, stopsource: str = None):
     return source_list, translation_list
 
 
+
+
+
 async def getTranslations(source_list, translation_list, llm, userprompt, systemprompt, language: Language = German()):
     outputlist = []
     async_requests = []
 
-    for source, translation in zip(source_list[:200], translation_list[:200]):
+    for source, translation in tqdm(zip(source_list, translation_list), total=len(source_list), desc="Sending requests"):
         prompt = userprompt.format(italian=source.strip(), english=translation.strip())
         messages = llm.format_messages(userprompt=prompt, systemprompt=systemprompt)
         async_request = llm.get_completion_async(messages=messages)
         print("async request")
         async_requests.append(async_request)
-    
 
-     
-    results = await asyncio.gather(*async_requests)
+    results = []
+    for async_request in tqdm(asyncio.as_completed(async_requests), total=len(async_requests), desc="Processing responses"):
+        result = await async_request
+        results.append(result)
 
-    for source, translation, result in zip(source_list, translation_list, results):
+    for source, translation, result in tqdm(zip(source_list, translation_list, results), total=len(source_list), desc="Parsing results"):
         interlist = parseInterlinear(result)
         parseinfo = language.parse_sent(source)
         outputlist.append({"source": source, "translation": translation, "interlinear": interlist, "parseinfo": parseinfo, "rawoutput": result})
@@ -100,7 +104,7 @@ if __name__ == '__main__':
     #translations = getTranslations(source_list, translation_list, llm, userprompt, systemprompt)
     translations = asyncio.run(getTranslations(source_list, translation_list, llm, userprompt, systemprompt, language=Italian()))
     # print(translations)
-    with open("textcreation/texts/interlinearouts/interlinearlahiri2.json", 'w', encoding='utf8') as file:
+    with open("textcreation/texts/interlinearouts/interlinearlahiri3.json", 'w', encoding='utf8') as file:
         json.dump(translations, file, ensure_ascii=False)
 
 

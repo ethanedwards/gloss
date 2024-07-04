@@ -7,7 +7,12 @@ from tenacity import (
     retry,
     stop_after_attempt,
     wait_random_exponential,
+    before_sleep_log,
 ) 
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.WARNING)
 
 class claude(llm):
     def __init__(self):
@@ -21,21 +26,25 @@ class claude(llm):
         )
 
         self.requestcount = 0
-        self.requestmax = 4
+        self.requestmax = 10
 
 
 
         
-    @retry(wait=wait_random_exponential(min=5, max=60), stop=stop_after_attempt(6))
+
+    @retry(wait=wait_random_exponential(min=5, max=60), stop=stop_after_attempt(6), before_sleep=before_sleep_log(logger, logging.WARNING))
     async def get_completion_async(self, messages:dict, model:str="claude-3-opus-20240229", max_tokens:int=1024, temperature:float=0.8):
-        while(self.requestcount >= self.requestmax):
+        while self.requestcount >= self.requestmax:
             await asyncio.sleep(60)
         self.requestcount += 1
-        message = await self.create_api_message(self.aclient, messages, model, max_tokens, temperature)
-        # Use the event loop associated with the TokenBucket
-        self.requestcount -= 1
-        print("Request count: ", self.requestcount)
-        return message.content[0].text
+        try:
+            message = await self.create_api_message(self.aclient, messages, model, max_tokens, temperature)
+            self.requestcount -= 1
+            print("Request count: ", self.requestcount)
+            return message.content[0].text
+        except Exception as e:
+            logger.warning(f"Retry due to exception: {str(e)}")
+            raise
     
     @retry(wait=wait_random_exponential(min=5, max=60), stop=stop_after_attempt(6))
     def get_completion_sync(self, messages:dict, model:str="claude-3-opus-20240229", max_tokens:int=1024, temperature:float=0.8):

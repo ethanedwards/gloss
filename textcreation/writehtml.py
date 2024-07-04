@@ -310,5 +310,5 @@ def write_html_interlinear(jsonfile, htmltemplate, htmlfileout):
 # #    json.dump(serializable_dict, f, ensure_ascii=False)
 
 
-write_html_interlinear("textcreation/texts/interlinearouts/interlinearlahiri2.json", "textcreation/texts/templates/infernotemplate.html", "templates/lahiri.html")
+write_html_interlinear("textcreation/texts/interlinearouts/interlinearlahiri5.json", "textcreation/texts/templates/infernotemplate.html", "templates/lahiri.html")
 #write_html_interlinear("textcreation/texts/interlinearouts/interlinearibsen2.json", "textcreation/texts/templates/infernotemplate.html", "templates/ibsen.html")

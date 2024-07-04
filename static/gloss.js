@@ -121,6 +121,29 @@ function addChatMessage(sender, text, append = false) {
 
 let gloss = true;
 
+function lookup(entry){
+    // Track click count
+    const dictionary = entry.querySelector('.dictionary').textContent.trim();
+    const pos = entry.querySelector('.pos').textContent.trim();
+
+    // Send click data to server
+    fetch('/update_click', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ lemma: dictionary, pos: pos }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const key = `${dictionary}|${pos}`;
+            clickCounts[key] = data.clicks;
+            console.log(`Clicked: ${key}, Count: ${clickCounts[key]}`);
+        }
+    });
+}
+
 document.addEventListener('keydown', function(event) {
     if ((event.key === 'a' || event.key === 'A') && event.target.id !== 'studentInput') {
         toggleGloss();
@@ -139,6 +162,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
                     gloss.classList.remove('hidden-gloss');
                 }
             }
+            lookup(this);
         });
         word.addEventListener('touchstart', function() {
             const gloss = this.querySelector('.gloss');
@@ -148,6 +172,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
                     gloss.classList.remove('hidden-gloss');
                 }
             }
+            lookup(this);
         });
     });
 });
