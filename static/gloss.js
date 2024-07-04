@@ -116,7 +116,20 @@ function addChatMessage(sender, text, append = false) {
 }
 
 
-
+clickCounts = {};
+fetch('/get_click_counts', {
+    method: 'GET',
+    headers: {
+        'Content-Type': 'application/json',
+    },
+})
+.then(response => response.json())
+.then(data => {
+    if (data.success) {
+        clickCounts = data.clicks;
+        console.log('Click counts:', clickCounts);
+    }
+});
 
 
 let gloss = true;

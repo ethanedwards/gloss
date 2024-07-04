@@ -145,7 +145,7 @@ button {
 .chat-container {
     width: 30%;
     position: fixed;
-    top: 5%; /* Stick to the top of the viewport */
+    top: 10%; /* Stick to the top of the viewport */
     right: 0; /* Align to the right side of the viewport */
     height: 100%; /* Full height of the viewport */ /* This will stick to the top of the viewport */
     z-index: 1000; /* Ensure it's above other elements */
@@ -279,5 +279,8 @@ button {
         flex-direction: column;
         overflow-y: none;
         flex-grow: 1;
+    }
+    #highlightedTextContainer {
+        display: none; /* Hide the highlighted text container on mobile */
     }
 }
