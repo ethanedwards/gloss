@@ -48,8 +48,76 @@ def getJSON(file):
 def processInterlinear(datalist):
     runninghtml = ""
     for entry in datalist:
-        runninghtml += processSource(entry)
+        runninghtml += processSourceH(entry)
     return runninghtml
+
+def processSourceH(entry):
+    runninghtml = ""
+    text = entry['source']
+    translation = entry['translation']
+    interlinear = entry['interlinear']
+    parsinginfo = entry['parseinfo']
+
+    # Create a list of words from the interlinear data
+    words = [gloss[0] for gloss in interlinear if gloss and gloss[0]]
+
+    # Function to find the next word in the text
+    def find_next_word(text, words):
+        for word in sorted(words, key=len, reverse=True):
+            if text.startswith(word):
+                return word
+        return text[0]  # Return the first character if no word matches
+
+    # Process the text
+    remaining_text = text
+    while remaining_text:
+        print(len(remaining_text))
+        word = find_next_word(remaining_text, words)
+        
+        # Find the corresponding gloss
+        gloss = next((g for g in interlinear if g[0] == word), None)
+        
+        if gloss:
+            interlineargloss = gloss[1] if len(gloss) > 1 else ""
+            interlinearalt = gloss[2] if len(gloss) > 2 else ""
+            interlinearlit = gloss[3] if len(gloss) > 3 else ""
+            
+            # Find corresponding parsing info
+            parse = next((p for p in parsinginfo if p[0] == word), None)
+            if parse:
+                grammar = parse[3]
+                dictionaryforms = parse[1]
+                pos = parse[2]
+            else:
+                grammar = dictionaryforms = pos = ""
+
+            runninghtml += f"""
+            <div class="word" title="{grammar}">
+                {word}
+                <div class="gloss">{interlineargloss}</div>
+                <div class="alt">{interlinearalt}</div>
+                <div class="lit">{interlinearlit}</div>
+                <div class="pos">{pos}</div>
+                <div class="dictionary">{dictionaryforms}</div>
+                <div class="sourcesentence">{text}</div>
+                <div class="translation">{translation}</div>
+            </div>
+            """
+        else:
+            # Handle characters not found in interlinear data
+            runninghtml += f"""
+            <div class="word">
+                {word}
+            </div>
+            """
+
+        remaining_text = remaining_text[len(word):]
+
+        # Add a space after each word for better formatting
+        runninghtml += " "
+
+    return runninghtml
+
 
 def processSource(entry):
     runninghtml = ""
@@ -175,140 +243,4 @@ def write_html_interlinear(jsonfile, htmltemplate, htmlfileout):
 
 
 
-# with open(f'textcreation/texts/html/inferno1.html', 'w', encoding='utf-8') as file:
-#     file.write("""
-# <!DOCTYPE html>
-# <html>
-# <head>
-# <style>
-# .interlinear-container {
-#     direction: ltr;
-#     margin: 0 120px;
-# }
-
-# .word-group {
-#     display: flex;
-#     flex-flow: row wrap;
-#     /* If you want a gap between word groups */
-#     margin-bottom: 20px; /* Adjust as necessary */
-# }
-
-# /* Increase the font size of the main word container */
-# .interlinear-container .word {
-#     padding: 10px;
-#     font-size: 1.2em; /* Adjust the size as needed */
-# }
-
-# /* Decrease the font size of gloss */
-# .interlinear-container .word .gloss {
-#     display: block;
-#     font-size: 0.8em; /* Adjust the size as needed */
-#     user-select: none;
-# }
-
-# /* Shrink the font size and change alignment of grammar */
-# .interlinear-container .word .grammar {
-#     display: block;
-#     font-size: 0.6em; /* Adjust the size as needed */
-#     text-align: right; /* Aligns text to the right */
-#     user-select: none;
-# }
-
-# /* Hide pos and dictionary completely */
-# .interlinear-container .word .pos,
-# .interlinear-container .word .dictionary,
-# .interlinear-container .word .sourcesentence,
-# .interlinear-container .word .translation {
-#     display: none;
-#     user-select: none;
-# }
-               
-# .chat-interface {
-#     width: 25%; /* Adjust based on your preference */
-#     padding: 20px;
-#     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-#     max-height: 600px; /* Or whatever height matches your design */
-#     overflow-y: auto; /* Enable scrollbar if the content overflows */
-#     float: right;
-# }
-
-# .chat-message {
-#     margin-bottom: 20px;
-#     padding: 10px;
-#     background-color: #f0f0f0;
-#     border-radius: 10px;
-# }
-
-# .tutor, .student {
-#     font-weight: bold;
-# }
-
-# .message-text {
-#     margin-top: 5px;
-# }
-               
-# .chat-input {
-#     display: flex;
-#     justify-content: space-between;
-#     padding: 10px;
-# }
-
-# #studentInput {
-#     width: 80%;
-#     margin-right: 10px;
-# }
-
-# button {
-#     width: 18%;
-#     cursor: pointer;
-# }
-# .hidden-gloss {
-#     color: transparent; /* Makes the text transparent */
-# }
-
-# </style>
-# </head>
-
-# <body>
-#     <div class="interlinear-container">    
-#         <div class="word-group">
-#     """)
-
-#     file.write(processInterlinear(getJSON("textcreation/texts/interlinearouts/interlinearinferno.json")))
-
-#     file.write("""
-#     </div>
-# </div>
-# <script>
-# document.addEventListener('keydown', function(event) {
-#     // Check if the pressed key is 'a' or 'A'
-#     if (event.key === 'a' || event.key === 'A') {
-#         // Select all elements with the class name 'gloss'
-#         const glossElements = document.querySelectorAll('.gloss');
-
-#         // Toggle the 'hidden-gloss' class for each gloss element
-#         glossElements.forEach(function(glossElement) {
-#             if (glossElement.classList.contains('hidden-gloss')) {
-#                 // If the gloss is hidden (transparent), remove the class to show it
-#                 glossElement.classList.remove('hidden-gloss');
-#             } else {
-#                 // If the gloss is shown, add the class to hide it
-#                 glossElement.classList.add('hidden-gloss');
-#             }
-#         });
-#     }
-# });
-# </script>
-# <script src="chat-script.js"></script>
-# </body>
-# </html>
-#     """)
-# #serializable_dict = {str(key): value for key, value in pair_count.items()}
-
-# # Now you can dump this dictionary into a JSON file
-# #with open(paircountfile, 'w') as f:
-# #    json.dump(serializable_dict, f, ensure_ascii=False)
-
-
-write_html_interlinear("textcreation/texts/interlinearouts/interlinearlahiri5.json", "textcreation/texts/templates/infernotemplate.html", "templates/lahiri.html")
-#write_html_interlinear("textcreation/texts/interlinearouts/interlinearibsen2.json", "textcreation/texts/templates/infernotemplate.html", "templates/ibsen.html")
+write_html_interlinear("textcreation/texts/interlinearouts/neeleneele.json", "textcreation/texts/templates/infernotemplate.html", "templates/neeleneeletrue.html")
