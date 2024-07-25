@@ -3,7 +3,6 @@ from textcreation.llm.claude import claude
 from anthropic.types import ContentBlockDeltaEvent
 import json
 import os
-from flask_sqlalchemy import SQLAlchemy
 
 llm = claude()
 
@@ -65,6 +64,14 @@ def ibsen():
 @app.route('/lahiri')
 def lahiri():
     return render_template('lahiri.html')
+
+@app.route('/marquez')
+def marquez():
+    return render_template('marquez.html')
+
+@app.route('/zarathustra')
+def zarathustra():
+    return render_template('zarathustra.html')
 
 
 

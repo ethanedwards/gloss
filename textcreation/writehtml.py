@@ -48,7 +48,7 @@ def getJSON(file):
 def processInterlinear(datalist):
     runninghtml = ""
     for entry in datalist:
-        runninghtml += processSourceH(entry)
+        runninghtml += processSource(entry)
     return runninghtml
 
 def processSourceH(entry):
@@ -243,4 +243,4 @@ def write_html_interlinear(jsonfile, htmltemplate, htmlfileout):
 
 
 
-write_html_interlinear("textcreation/texts/interlinearouts/neeleneele.json", "textcreation/texts/templates/infernotemplate.html", "templates/neeleneeletrue.html")
+write_html_interlinear("textcreation/texts/interlinearouts/interlinearzarathustra2.json", "textcreation/texts/templates/infernotemplate.html", "templates/zarathustra.html")

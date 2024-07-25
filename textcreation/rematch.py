@@ -30,8 +30,8 @@ def match_interlinear(entries):
     return new_entries
 
 def main():
-    input_filename = 'textcreation/texts/interlinearouts/interlinearlahiri3.json'
-    output_filename = 'textcreation/texts/interlinearouts/interlinearlahiri5.json'
+    input_filename = 'textcreation/texts/interlinearouts/interlinearzarathustra.json'
+    output_filename = 'textcreation/texts/interlinearouts/interlinearzarathustra2.json'
     
     data = load_json(input_filename)
     corrected_data = match_interlinear(data)
