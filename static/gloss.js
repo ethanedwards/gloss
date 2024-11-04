@@ -163,31 +163,74 @@ document.addEventListener('keydown', function(event) {
     }
 });
 
+// Replace the existing word-specific event listeners with this:
 document.addEventListener('DOMContentLoaded', (event) => {
+    // Add a single event listener to the interlinear container
+    const container = document.querySelector('.interlinear-container');
+    
+    // Handle clicks/touches
+    container.addEventListener('click', handleWordInteraction);
+    container.addEventListener('touchstart', handleWordInteraction);
+    
+    // Add IDs to all words
     const words = document.querySelectorAll('.word');
-
-    words.forEach(word => {
-        word.addEventListener('click', function() {
-            const gloss = this.querySelector('.gloss');
-            if (gloss) {
-                gloss.classList.toggle('permanent-gloss');
-                if (gloss.classList.contains('hidden-gloss')) {
-                    gloss.classList.remove('hidden-gloss');
-                }
-            }
-            lookup(this);
-        });
-        word.addEventListener('touchstart', function() {
-            const gloss = this.querySelector('.gloss');
-            if (gloss) {
-                gloss.classList.toggle('permanent-gloss');
-                if (gloss.classList.contains('hidden-gloss')) {
-                    gloss.classList.remove('hidden-gloss');
-                }
-            }
-            lookup(this);
-        });
+    words.forEach((word, index) => {
+        word.setAttribute('data-word-id', `word-${index}`);
     });
+});
+
+function handleWordInteraction(event) {
+    const wordElement = event.target.closest('.word');
+    if (!wordElement) return; // Exit if click/touch wasn't on a word
+    
+    const gloss = wordElement.querySelector('.gloss');
+    if (gloss) {
+        gloss.classList.toggle('permanent-gloss');
+        if (gloss.classList.contains('hidden-gloss')) {
+            gloss.classList.remove('hidden-gloss');
+        }
+    }
+    lookup(wordElement);
+}
+
+// For long press functionality, modify the handleLongPress implementation:
+const longPressManager = {
+    timer: null,
+    touchDuration: 500,
+    
+    init() {
+        const container = document.querySelector('.interlinear-container');
+        container.addEventListener('touchstart', this.handleTouchStart.bind(this));
+        container.addEventListener('touchend', this.handleTouchEnd.bind(this));
+        container.addEventListener('touchmove', this.handleTouchEnd.bind(this));
+    },
+    
+    handleTouchStart(event) {
+        const wordElement = event.target.closest('.word');
+        if (!wordElement) return;
+        
+        event.preventDefault();
+        this.timer = setTimeout(() => {
+            let range = document.createRange();
+            range.selectNodeContents(wordElement);
+            let selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            displayHighlightedText(getElements(selection)[0]);
+        }, this.touchDuration);
+    },
+    
+    handleTouchEnd() {
+        if (this.timer) {
+            clearTimeout(this.timer);
+            this.timer = null;
+        }
+    }
+};
+
+// Initialize long press functionality
+document.addEventListener('DOMContentLoaded', () => {
+    longPressManager.init();
 });
 
 // Prevent the chat interface from losing focus when clicked

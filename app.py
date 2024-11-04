@@ -73,6 +73,14 @@ def marquez():
 def zarathustra():
     return render_template('zarathustra.html')
 
+@app.route('/lessico')
+def lessico():
+    return render_template('lessico.html')
+
+@app.route('/freude')
+def freude():
+    return render_template('freude.html')
+
 
 
 @app.route('/chatresponse', methods=['POST'])
