@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gloss - AI-Assisted Foreign Language Reading</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            background-color: #e0f2f1;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 100%;
+            padding: 20px;
+        }
+
+        @media screen and (min-width: 600px) {
+            .container {
+                max-width: 600px;
+            }
+
+            body {
+                height: 100vh;
+            }
+        }
+
+        h1 {
+            color: #004d40;
+            font-size: 24px;
+            margin-top: 0;
+        }
+
+        p {
+            color: #00695c;
+            font-size: 16px;
+        }
+
+        @media screen and (min-width: 600px) {
+            h1 {
+                font-size: 32px;
+            }
+
+            p {
+                font-size: 18px;
+            }
+        }
+
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #00897b;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 25px;
+            margin: 10px;
+            transition: background-color 0.3s;
+        }
+
+        .button:hover {
+            background-color: #00695c;
+        }
+
+        .button-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        @media screen and (min-width: 600px) {
+            .button-container {
+                flex-direction: row;
+                justify-content: center;
+                gap: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gloss</h1>
+        <p>Gloss is a new way to read foreign languages using AI. It combines insights from global traditions of literacy and the latest in Large Language Models to facilitate an encounter with a text in its original idiom without any prior study.</p>
+        <p>The project is currently in development by <a href="https://ethanedwards.substack.com/">Ethan Edwards</a>.</p>
+        <p>Check out our demo excerpts</p>
+        <a href="{{ url_for('texts.show_text_page', text_name='inferno', page=1) }}" class="button">Inferno - Dante</a>
+        <a href="{{ url_for('texts.show_text_page', text_name='freude', page=1) }}" class="button">An die Freude - Schiller</a>
+        <br>
+        <br>
+        <br>
+        <p>Follow the Project</p>
+        <div class="button-container">
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLSff2aI9b8Bn5iz2JZDnM86PHpUoLnx7cDNKZqXcd4uDTChonw/viewform?usp=sf_link" class="button">Request a text or become a beta reader</a>
+        </div>
+    </div>
+</body>
+</html>

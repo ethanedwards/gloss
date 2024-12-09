@@ -3,7 +3,7 @@ import re
 from difflib import SequenceMatcher
 import string
 import os
-
+import uuid
 
 #paircount file
 paircountfile = "paircount.json"
@@ -46,10 +46,32 @@ def getJSON(file):
     return data
 
 def processInterlinear(datalist):
+    runninghtmls = []
+    sentence_stores = []
+    #Before loop
     runninghtml = ""
+    stracker = sentenceTracker()
+    sentence_store = sentenceStore()
+    #Loop through each entry
     for entry in datalist:
-        runninghtml += processSource(entry)
-    return runninghtml
+        add, store = processSource(entry, stracker)
+        #print(str(store.sentences))
+        # check if the pattern \n\n\n\n\n\n all caps \n\n\n\n\n\n is in str(store.sentences) or if it has 2. 3. or 4.
+        if (re.search(r'\n\s*\n\s*\n\s*\n\s*([A-Z\s]+)\n\s*\n\s*\n\s*\n', entry['source']) or re.search(r'([2-9]\.\s+)', entry['source'])):
+            print(entry)
+            runninghtmls.append(runninghtml)
+            sentence_stores.append(sentence_store)
+            runninghtml = ""
+            sentence_store = sentenceStore()
+        runninghtml += add
+        sentence_store.sentences.update(store.sentences)
+        sentence_store.wordMap.update(store.wordMap)
+    #Add last one
+    runninghtmls.append(runninghtml)
+    sentence_stores.append(sentence_store)
+
+
+    return runninghtmls, sentence_stores
 
 def processSourceH(entry):
     runninghtml = ""
@@ -118,16 +140,41 @@ def processSourceH(entry):
 
     return runninghtml
 
+class sentenceStore:
+    sentences = {}  # Will store sentence pairs indexed by sentence ID
+    wordMap = {}     # Will map word IDs to sentence IDs
 
-def processSource(entry):
+class sentenceTracker:
+    sentence_id = 0
+    #Won't work with repetition of sentences
+    current_sentence = ""
+
+    def increase(self):
+        self.sentence_id += 1
+
+def generate_word_id(word):
+    return word + str(uuid.uuid4())
+
+def processSource(entry, stracker):
     runninghtml = ""
     text = entry['source']
     translation = entry['translation']
     interlinear = entry['interlinear']
     parsinginfo = entry['parseinfo']
+
+    if stracker.current_sentence != text:
+        stracker.current_sentence = text
+        stracker.increase()
+
+    sentence_store = sentenceStore()
     # Regex pattern with capturing groups:
     # (\w+\b[^\s\w]*) captures a sequence of word characters followed by optional non-word, non-whitespace characters.
     # (\s+) captures at least one whitespace character, including newlines
+
+    # Wow so hacky
+    text = text.replace("’", "653")
+    text = text.replace("'", "653")
+    
     pattern = r'(\w+\b[^\s\w]*)|(\s+)'
 
     # Split the text and keep delimiters
@@ -139,6 +186,8 @@ def processSource(entry):
 
     # Process each element
     for i, element in enumerate(elements):
+        if "653" in element:
+            element = element.replace("653", "'")
         if i not in throughlist:
             if '\n' in element:
                 runninghtml += """
@@ -205,21 +254,29 @@ def processSource(entry):
                             pos += " " + str(parse[2])
                             parsinginfo.pop(pindex)
                             break
+                sentence_id = stracker.sentence_id
+                word_id = generate_word_id(word)
+                sentence_data = {
+                    'source': text,
+                    'translation': translation
+                }
+                
                 runninghtml += f"""
-                <div class="word" title="{grammar}">
+                <div class="word" title="{grammar}" data-word-id="{word_id}" data-sentence-id="{sentence_id}">
                     {word}
                     <div class="gloss">{interlineargloss}</div>
                     <div class="alt">{interlinearalt}</div>
                     <div class="lit">{interlinearlit}</div>
                     <div class="pos">{pos}</div>
                     <div class="dictionary">{dictionaryforms}</div>
-                    <div class="sourcesentence">{text}</div>
-                    <div class="translation">{translation}</div>
                 </div>
                 """
-
-
-    return runninghtml
+                
+                # Create a separate JSON file with sentence data
+                sentence_store.sentences[sentence_id] = sentence_data
+                sentence_store.wordMap[word_id] = sentence_id
+    
+    return runninghtml, sentence_store
 
 def text_to_html(text):
     html_text = (
@@ -234,13 +291,30 @@ def text_to_html(text):
     return html_text
 
 
-def write_html_interlinear(jsonfile, htmltemplate, htmlfileout):
-    interlineartext = processInterlinear(getJSON(jsonfile))
-    htmltext = open(htmltemplate, 'r').read()
-    htmltext = htmltext.replace("{{interlinear}}", interlineartext)
-    with open(htmlfileout, 'w', encoding='utf-8') as file:
-        file.write(htmltext)
+def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, description):
+    interlineartexts, sentence_stores = processInterlinear(getJSON(jsonfile))
+    html_template = open(htmltemplate, 'r').read()
+    # enumerate starts at 1
+    for i, interlineartext in enumerate(interlineartexts, 1):
+        htmltext = html_template.replace("{{interlinear}}", interlineartext)
+        htmltext = htmltext.replace("{{Title}}", title, -1)
+        htmltext = htmltext.replace("{{Description}}", description)
+        page_info = '<meta name="page_number" content="' + str(i) + '">'
+        if len(interlineartexts) >= i+1:
+            page_info += '<meta name="next_page" content="' + str(i+1) + '">'
+        if i > 1:
+            page_info += '<meta name="previous_page" content="' + str(i-1) + '">'
+        page_info += '<meta name="sentence_store" content="' + textname + '_' + str(i) + '">'
+        htmltext = htmltext.replace("{{page_info}}", page_info)
+        with open(dir + textname + "/" + textname + "_" + str(i) + ".html", 'w', encoding='utf-8') as file:
+            file.write(htmltext)
+        with open(dir + textname + "/sentence_stores/" + textname + "_" + str(i) + ".json", 'w') as file:
+            sentence_store_dict = {}
+            sentence_store_dict['sentences'] = sentence_stores[i-1].sentences
+            sentence_store_dict['wordMap'] = sentence_stores[i-1].wordMap
+            json.dump(sentence_store_dict, file)
 
+        print("Wrote page " + str(i))
+        # Write one file for each page, first sentence of each page has /n/n/n/n/n
 
-
-write_html_interlinear("textcreation/texts/interlinearouts/interlinearzarathustra2.json", "textcreation/texts/templates/infernotemplate.html", "templates/zarathustra.html")
+write_html_interlinear("textcreation/texts/interlinearouts/interlinearzarathustra2.json", "textcreation/texts/templates/infernotemplate.html", "app/templates/texts/", "zarathustra", "Zarathustra", "Friedrich Nietzsche's Zarathustra")

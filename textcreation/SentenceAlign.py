@@ -254,7 +254,7 @@ def write_to_json(source_list, translation_list, file_name='translation.json'):
 
 
 #Put it all together
-sources, trans = GetSentences('textcreation/texts/sources/zarathustra1de.txt', 'textcreation/texts/sources/zarathustra1eng.txt')
+sources, trans = GetSentences('textcreation/texts/sources/proust1french.txt', 'textcreation/texts/sources/proust1eng.txt')
 #sources, trans = GetSentences('../Novels/proustfr.txt', '../Novels/prousten.txt')
 outsource, outtrans = AlignSentences(sources, trans, model)
-write_to_json(outsource, outtrans, file_name='textcreation/texts/aligned/zarathustra1.json')
+write_to_json(outsource, outtrans, file_name='textcreation/texts/aligned/proust1.json')

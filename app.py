@@ -49,6 +49,13 @@ conversation_buffer = []
 def index():
     return render_template('main.html')
 
+@app.route('/get_sentence_data')
+def get_sentence_data():
+    # Load your sentence store JSON
+    with open('static/sentence_stores/sentence_lahiri.json', 'r') as f:
+        sentence_data = json.load(f)
+    return jsonify(sentence_data)
+
 @app.route('/inferno1')
 def inferno1():
     return render_template('inferno1.html')
@@ -80,6 +87,10 @@ def lessico():
 @app.route('/freude')
 def freude():
     return render_template('freude.html')
+
+@app.route('/test')
+def test():
+    return render_template('freude2.html')
 
 
 
