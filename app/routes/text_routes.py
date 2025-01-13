@@ -31,6 +31,11 @@ TEXT_CONFIG = {
         'template_base': 'texts/zarathustra/zarathustra_{}.html',
         'sentence_store': 'texts/zarathustra/sentence_stores/zarathustra_{}.json'
     },
+    'sinocismtest': {
+        'pages': 1,
+        'template_base': 'texts/sinocismtest/sinocismtest_{}.html',
+        'sentence_store': 'texts/sinocismtest/sentence_stores/sinocismtest_{}.json'
+    },
     # Add other texts...
 }
 
