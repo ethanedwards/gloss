@@ -23,6 +23,17 @@ def parseInterlinear(gptoutput):
 
     return outputlist
 
+def parseInterlinearWithTranslation(gptoutput):
+    print(gptoutput)
+    outputlist = []
+    translation = gptoutput.split("&")[1]
+    interlinear = gptoutput.split("&")[2]
+    phraselist = interlinear.split("|")[1:-1]
+    for phrase in phraselist:
+        wordlist = phrase.split("*")
+        wordlist = [word.strip() for word in wordlist]
+        outputlist.append(wordlist)
+    return outputlist, translation
 
 def zipsources(jsonfile, stopsource: str = None):
     #Read in the jsonfile
@@ -75,6 +86,15 @@ async def getTranslations(source_list, translation_list, llm, userprompt, system
 
     return outputlist
 
+async def getTranslationAndInterlinear(source, llm, userprompt, systemprompt, language: Language = Persian()):
+    prompt = userprompt.format(persian=source.strip())
+    messages = llm.format_messages(userprompt=prompt, systemprompt=systemprompt)
+    async_request = llm.get_completion_async(messages=messages)
+    result = await async_request
+    interlist, translation = parseInterlinearWithTranslation(result)
+    parseinfo = language.parse_sent(source)
+    return {"source": source, "translation": translation, "interlinear": interlist, "parseinfo": parseinfo, "rawoutput": result}
+
 def getTranslationsResults(llmout, source, translation, language):
     result = llmout
     interlist = parseInterlinear(result)
@@ -97,18 +117,23 @@ def parseHindi():
 if __name__ == '__main__':
     #load yml file for prompts
     lib = promptlibrary("textcreation/promptlibrary.yml")
-    userprompt = lib.find_prompt_by_title("InterlinearUserChinese")
-    systemprompt = lib.find_prompt_by_title("InterlinearSystemChinese")
+    userprompt = lib.find_prompt_by_title("InterlinearUserPersianPoetry")
+    systemprompt = lib.find_prompt_by_title("InterlinearSystemPersianPoetry")
 
     llm = claude()
     
     #source_list, translation_list = zipsources("textcreation/texts/aligned/proust1.json")
-    source_list = [open("textcreation/texts/sources/sinocismtestch.txt", 'r').read()]
-    translation_list = [open("textcreation/texts/sources/sinocismtesten.txt", 'r').read()]
+    #source_list = [open("textcreation/texts/sources/sinocismtestch.txt", 'r').read()]
+    #translation_list = [open("textcreation/texts/sources/sinocismtesten.txt", 'r').read()]
+
+    source = open("textcreation/texts/sources/abuatapoem.txt", 'r').read()
+    sources = source.split("\n\n")
     print("Getting translations")
-    translations = asyncio.run(getTranslations(source_list, translation_list, llm, userprompt, systemprompt, language=Chinese()))
-    with open("textcreation/texts/interlinearouts/interlinearsinocismtest.json", 'w', encoding='utf8') as file:
-        json.dump(translations, file, ensure_ascii=False)
+    #translations = asyncio.run(getTranslations(source_list, translation_list, llm, userprompt, systemprompt, language=Chinese()))
+    interlinear = asyncio.run(getTranslationAndInterlinear(sources[0], llm, userprompt, systemprompt, language=Persian()))
+    interlinear = [interlinear] + [asyncio.run(getTranslationAndInterlinear(sources[1], llm, userprompt, systemprompt, language=Persian()))]
+    with open("textcreation/texts/interlinearouts/interlinearabuatapoem.json", 'w', encoding='utf8') as file:
+        json.dump(interlinear, file, ensure_ascii=False)
 
 
 

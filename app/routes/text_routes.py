@@ -36,14 +36,24 @@ TEXT_CONFIG = {
         'template_base': 'texts/sinocismtest/sinocismtest_{}.html',
         'sentence_store': 'texts/sinocismtest/sentence_stores/sinocismtest_{}.json'
     },
+    'persian_poems': {
+        'pages': 1,
+        'template_base': 'texts/persian_poems/persian_poems_{}.html',
+        'sentence_store': 'texts/persian_poems/sentence_stores/persian_poems_{}.json'
+    },
     # Add other texts...
 }
 
 @texts.route('/get_sentence_data')
 def get_sentence_data():
     filename = request.args.get('filename')
-    text_name = filename.split('_')[0]
-    page = filename.split('_')[1]
+    print(filename)
+    # join all except the last element of the split
+    text_name = '_'.join(filename.split('_')[:-1])
+    print(text_name)
+    # get the last element of the split
+    page = filename.split('_')[-1]
+    print(page)
     json_path = os.path.join(
         'app/templates/',  # Add templates directory to path
         TEXT_CONFIG[text_name]['sentence_store'].format(page)

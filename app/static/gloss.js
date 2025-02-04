@@ -38,7 +38,8 @@ function tutorRequest(prompt) {
     const requestData = {
         content: prompt,
     };
-    textname = filename.split('_')[0];
+    // get the text name by joining all elements of the split filename except the last one
+    textname = filename.split('_').slice(0, -1).join('_');
     return fetch(`/api/chatresponse?textname=${textname}`, {
         method: 'POST',
         headers: {

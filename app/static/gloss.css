@@ -4,7 +4,6 @@ body {
 }
 
 .interlinear-container {
-    direction: ltr;
     margin: 0 50px;
     width: 65%;
     float: left;
@@ -14,7 +13,7 @@ body {
     display: flex;
     flex-flow: row wrap;
     /* If you want a gap between word groups */
-    margin-bottom: 20px; /* Adjust as necessary */
+    margin-bottom: 100px; /* Adjust as necessary */
 }
 
 /* Increase the font size of the main word container */

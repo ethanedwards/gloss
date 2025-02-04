@@ -68,7 +68,6 @@ def processInterlinear(datalist, language=''):
         runninghtml += add
         sentence_store.sentences.update(store.sentences)
         sentence_store.wordMap.update(store.wordMap)
-    #Add last one
     runninghtmls.append(runninghtml)
     sentence_stores.append(sentence_store)
 
@@ -542,4 +541,4 @@ def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, descrip
         print("Wrote page " + str(i))
         # Write one file for each page, first sentence of each page has /n/n/n/n/n
 
-write_html_interlinear("textcreation/texts/interlinearouts/interlinearsinocismtest.json", "textcreation/texts/templates/infernotemplate.html", "app/templates/texts/", "sinocismtest", "SinocismTest", "Test of Gloss's Chinese Interlinear", 'chinese')
+write_html_interlinear("textcreation/texts/interlinearouts/interlinearabuatapoem.json", "textcreation/texts/templates/infernotemplate.html", "app/templates/texts/", "persian_poems", "Mohammad Taqi Bahar", "Mohammad Taqi Bahar", 'persian')
