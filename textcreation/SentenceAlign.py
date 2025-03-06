@@ -27,34 +27,44 @@ def SimpleRead(filename):
     segments = TokenizeSentences(content)
     return segments
 
-def GetSentences(filename1, filename2):
-    return SimpleRead(filename1), SimpleRead(filename2)
+def GetSentences(text1, text2):
+    return TokenizeSentences(text1), TokenizeSentences(text2)
 
-
+#Mostly use NLTK but have paragraphs in addition
 def TokenizeSentences(text):
-    # Tokenize the text into sentences
-    sentences = nltk.sent_tokenize(text)
+    # Split text by double newlines first
+    paragraphs = text.split('\n\n')
     
-    # Initialize a list to hold our whitespace-preserved sentences
     whitespace_preserved_sentences = []
     
-    # Iterate over the sentences and reconstruct using the original text
-    start = 0
-    for sentence in sentences:
-        # Find the start of the current sentence in the original text
-        start = text.find(sentence, start)
-        # Calculate the end of the current sentence
-        end = start + len(sentence)
-        # Extract the sentence with leading and trailing whitespace
-        while start > 0 and text[start-1].isspace():
-            start -= 1
-        while end < len(text) and text[end].isspace():
-            end += 1
-        # Append the sentence with preserved whitespace
-        whitespace_preserved_sentences.append(text[start:end])
-        # Update the start for the next iteration
-        start = end
-
+    for paragraph in paragraphs:
+        if not paragraph.strip():  # Skip empty paragraphs
+            continue
+            
+        # Tokenize each paragraph into sentences
+        sentences = nltk.sent_tokenize(paragraph)
+        
+        # Process each sentence within the paragraph
+        start = 0
+        for sentence in sentences:
+            # Find the start of the current sentence in the paragraph
+            start = paragraph.find(sentence, start)
+            # Calculate the end of the current sentence
+            end = start + len(sentence)
+            # Extract the sentence with leading and trailing whitespace
+            while start > 0 and paragraph[start-1].isspace():
+                start -= 1
+            while end < len(paragraph) and paragraph[end].isspace():
+                end += 1
+            # Append the sentence with preserved whitespace
+            whitespace_preserved_sentences.append(paragraph[start:end])
+            # Update the start for the next iteration
+            start = end
+        
+        # Add a double newline after each paragraph (except the last one)
+        if paragraphs.index(paragraph) < len(paragraphs) - 1:
+            whitespace_preserved_sentences[-1] += '\n\n'
+    
     return whitespace_preserved_sentences
 
 # def TokenizeSentences(text):
@@ -254,7 +264,41 @@ def write_to_json(source_list, translation_list, file_name='translation.json'):
 
 
 #Put it all together
-sources, trans = GetSentences('textcreation/texts/sources/proust1french.txt', 'textcreation/texts/sources/proust1eng.txt')
-#sources, trans = GetSentences('../Novels/proustfr.txt', '../Novels/prousten.txt')
-outsource, outtrans = AlignSentences(sources, trans, model)
-write_to_json(outsource, outtrans, file_name='textcreation/texts/aligned/proust1.json')
+content1 = open('textcreation/texts/sources/Witt3de.txt', 'r').read()
+content2 = open('textcreation/texts/sources/Witt3en.txt', 'r').read()
+# Divide the content into sections denoted by newline then a number followed by a period
+# Extract sections and their numbers using regex
+def extract_numbered_sections(content):
+    # Match any text up until we find a newline followed by numbers and a period
+    pattern = r'(?:.*?)(?:\n(\d+)\.(.*?))?(?=\n\d+\.|$)'
+    matches = re.finditer(pattern, content, re.DOTALL)
+    sections = []
+    for match in matches:
+        if match.group(1):  # if we found a number
+            section_num = int(match.group(1))
+            section_text = match.group(2).strip()
+            sections.append(" ".join([str(section_num), section_text]))
+    return sections
+
+sections1 = extract_numbered_sections(content1)
+sections2 = extract_numbered_sections(content2)
+
+
+sourcelist = []
+translist = []
+print(len(sections1))
+print(len(sections2))
+assert(len(sections1) == len(sections2))
+for i in range(len(sections1)):
+    print(sections1[i])
+    sources, trans = GetSentences(sections1[i], sections2[i])
+    #sources, trans = GetSentences('../Novels/proustfr.txt', '../Novels/prousten.txt')
+    outsource, outtrans = AlignSentences(sources, trans, model)
+    sourcelist.extend(outsource)
+    translist.extend(outtrans)
+    # Add blank lines between sections
+    sourcelist.append("")
+    translist.append("")
+    print(f"added {i}")
+
+write_to_json(sourcelist, translist, file_name='textcreation/texts/aligned/Witt3.json')

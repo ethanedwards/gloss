@@ -5,6 +5,16 @@ import string
 import os
 import uuid
 import jieba  # Add this import at the top of the file
+import MeCab
+from languages.japanese import Japanese
+from languages.german import German
+
+# Define additional punctuation marks
+ADDITIONAL_PUNCTUATION = '«»„"‹›''""-–—'
+# Combine with standard punctuation
+EXTENDED_PUNCTUATION = string.punctuation + ADDITIONAL_PUNCTUATION
+
+wakati = MeCab.Tagger("-Owakati")
 
 #paircount file
 paircountfile = "paircount.json"
@@ -50,6 +60,7 @@ def getJSON(file):
 def processInterlinear(datalist, language=''):
     runninghtmls = []
     sentence_stores = []
+    counter = 0
     #Before loop
     runninghtml = ""
     stracker = sentenceTracker()
@@ -59,8 +70,16 @@ def processInterlinear(datalist, language=''):
         add, store = processSource(entry, stracker, language)
         #print(str(store.sentences))
         # check if the pattern \n\n\n\n\n\n all caps \n\n\n\n\n\n is in str(store.sentences) or if it has 2. 3. or 4.
-        if (re.search(r'\n\s*\n\s*\n\s*\n\s*([A-Z\s]+)\n\s*\n\s*\n\s*\n', entry['source']) or re.search(r'([2-9]\.\s+)', entry['source'])):
+        #Chapter Checker
+        #if (re.search(r'\n\s*\n\s*\n\s*\n\s*([A-Z\s]+)\n\s*\n\s*\n\s*\n', entry['source']) or re.search(r'([2-9]\.\s+)', entry['source'])):
+        if entry['source'] == "":
+            counter += 1
+            runninghtml += """
+                </div> 
+                <div class="word-group">"""
+        if counter == 10:
             print(entry)
+            counter+=1
             runninghtmls.append(runninghtml)
             sentence_stores.append(sentence_store)
             runninghtml = ""
@@ -184,8 +203,8 @@ def processSourceTextFirst(entry, stracker, language=''):
             # Convert the list to a space-separated string for consistent processing
             return ' '.join(jieba.cut(text))
         # Add other language handlers here as needed:
-        # elif language == 'japanese':
-        #     return mecab.parse(text)  # Using MeCab for Japanese
+        elif language == 'japanese':
+            return ' '.join(wakati.parse(text).split())  # Using MeCab for Japanese
         # elif language == 'hindi':
         #     return indic_tokenize.trivial_tokenize(text)  # Using Indic NLP
         else:
@@ -300,6 +319,126 @@ def processSourceTextFirst(entry, stracker, language=''):
     
     return runninghtml, sentence_store
 
+
+def processSourceInterlinearFirst(entry, stracker, language):
+    runninghtml = """
+                </div> 
+                <div class="word-group">"""
+    text = entry['source']
+    translation = entry['translation']
+    interlinear = entry['interlinear']
+    parsinginfo = entry['parseinfo']
+    if stracker.current_sentence != text:
+        stracker.current_sentence = text
+        stracker.increase()
+
+
+
+    sentence_store = sentenceStore()
+
+    runningtext = entry['source']
+
+    for gloss in interlinear:
+        if len(gloss) < 2:
+            continue
+        gloss_word = gloss[0].strip()
+        print(f"gloss is {gloss}")
+        gloss_gloss = gloss[1]
+
+        sentence_id = stracker.sentence_id
+
+        #get the beginning of runningtext before the gloss_word
+        runningtext_before = runningtext[:runningtext.find(gloss_word.strip())]
+        if runningtext_before != "":
+            print(f"runningtext_before is {runningtext_before}")
+            elements = runningtext_before.split("\n")
+            for element in elements:
+                if element == "":
+                    runninghtml += """
+                    </div> 
+                    <div class="word-group">"""
+                else:
+                    word_id = generate_word_id(runningtext_before)
+                    sentence_data = {
+                        'source': text,
+                        'translation': translation
+                    }
+                    runninghtml += getHTML(word=element, gloss="", word_id=word_id, sentence_id=sentence_id, language=language)
+                    sentence_store.sentences[sentence_id] = sentence_data
+                    sentence_store.wordMap[word_id] = sentence_id
+
+            runningtext = runningtext[len(runningtext_before):]
+
+        
+        word_id = generate_word_id(gloss_word)
+        sentence_data = {
+            'source': text,
+            'translation': translation
+        }
+
+        #Get all words for the gloss
+        grammar = ""
+        dictionaryforms = ""
+        pos = ""
+        reading = ""
+        words = language.parse_sent(gloss_word)
+        for lookupword in words:
+            grammar += lookupword[4]
+            dictionaryforms += " " + lookupword[1]
+            pos += " " + lookupword[2]
+            reading += " " + lookupword[3]
+
+
+        sentence_id = stracker.sentence_id
+        word_id = generate_word_id(gloss_word)
+        sentence_data = {
+            'source': text,
+            'translation': translation
+        }
+        
+        runninghtml += getHTML(word=gloss_word, gloss=gloss_gloss, word_id=word_id, sentence_id=sentence_id, language=language)
+        sentence_store.sentences[sentence_id] = sentence_data
+        sentence_store.wordMap[word_id] = sentence_id
+
+        #remove gloss_word from front of runningtext by matching text
+        runningtext = re.sub(r'^' + re.escape(gloss_word), '', runningtext)
+
+    return runninghtml, sentence_store
+
+def getHTML(word, gloss, word_id, sentence_id, language):
+    #Get all words for the gloss
+    grammar = ""
+    dictionaryforms = ""
+    pos = ""
+    
+    # Get morphological analysis from language parser
+    words = language.parse_sent(word)
+    for lookupword in words:
+        grammar += lookupword[4]
+        dictionaryforms += " " + lookupword[1]
+        pos += " " + lookupword[2]
+
+    # Generate ruby markup using kakashi
+    word_with_ruby = ""
+    tokens = language.get_readings(word)  # Returns list of (kanji, kana) pairs
+    for kanji, kana in tokens:
+        if language.is_kanji_compound(kanji):
+            word_with_ruby += f'<ruby>{kanji}<rt>{kana}</rt></ruby>'
+        else:
+            word_with_ruby += kanji
+    
+    addhtml = f"""
+    <div class="word" title="{grammar}" data-word-id="{word_id}" data-sentence-id="{sentence_id}">
+        {word_with_ruby}
+        <div class="gloss">{gloss}</div>
+        <div class="alt">{""}</div>
+        <div class="pos">{pos}</div>
+        <div class="dictionary">{dictionaryforms}</div>
+    </div>
+    """
+
+    return addhtml
+
 def processSource(entry, stracker, language=''):
     runninghtml = ""
     text = entry['source']
@@ -317,7 +456,7 @@ def processSource(entry, stracker, language=''):
     # (\s+) captures at least one whitespace character, including newlines
 
     # Wow so hacky
-    text = text.replace("’", "653")
+    text = text.replace("'", "653")
     text = text.replace("'", "653")
     
     pattern = r'(\w+\b[^\s\w]*)|(\s+)'
@@ -328,8 +467,8 @@ def processSource(entry, stracker, language=''):
             # Convert the list to a space-separated string for consistent processing
             return ' '.join(jieba.cut(text))
         # Add other language handlers here as needed:
-        # elif language == 'japanese':
-        #     return mecab.parse(text)  # Using MeCab for Japanese
+        elif language == 'japanese':
+            return ' '.join(wakati.parse(text).split())  # Using MeCab for Japanese
         # elif language == 'hindi':
         #     return indic_tokenize.trivial_tokenize(text)  # Using Indic NLP
         else:
@@ -365,6 +504,8 @@ def processSource(entry, stracker, language=''):
             elif element.strip() == '\t':
                 runninghtml += "&nbsp;&nbsp;&nbsp;&nbsp;"
             elif element.isspace():  # This will catch other whitespace characters as well
+                runninghtml += element
+            elif element in EXTENDED_PUNCTUATION:
                 runninghtml += element
             else:
                 print(element)
@@ -467,6 +608,7 @@ def processSource(entry, stracker, language=''):
                 grammar = ""
                 dictionaryforms = ""
                 pos = ""
+                reading = ""
                 words = word.split(" ")
                 for lookupword in words:
                     for pindex, parse in enumerate(parsinginfo):
@@ -474,8 +616,12 @@ def processSource(entry, stracker, language=''):
                             grammar += parse[3]
                             dictionaryforms += " " + str(parse[1])
                             pos += " " + str(parse[2])
+                            #reading += " " + str(parse[4])
                             parsinginfo.pop(pindex)
                             break
+
+                if reading != "":
+                    interlinearlit = reading
                 sentence_id = stracker.sentence_id
                 word_id = generate_word_id(word)
                 sentence_data = {
@@ -515,11 +661,11 @@ def text_to_html(text):
     return html_text
 
 
-def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, description, language=''):
+def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, description, language, starting_page=1):
     interlineartexts, sentence_stores = processInterlinear(getJSON(jsonfile), language)
     html_template = open(htmltemplate, 'r').read()
     # enumerate starts at 1
-    for i, interlineartext in enumerate(interlineartexts, 1):
+    for i, interlineartext in enumerate(interlineartexts, starting_page):
         htmltext = html_template.replace("{{interlinear}}", interlineartext)
         htmltext = htmltext.replace("{{Title}}", title, -1)
         htmltext = htmltext.replace("{{Description}}", description)
@@ -534,11 +680,11 @@ def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, descrip
             file.write(htmltext)
         with open(dir + textname + "/sentence_stores/" + textname + "_" + str(i) + ".json", 'w') as file:
             sentence_store_dict = {}
-            sentence_store_dict['sentences'] = sentence_stores[i-1].sentences
-            sentence_store_dict['wordMap'] = sentence_stores[i-1].wordMap
+            sentence_store_dict['sentences'] = sentence_stores[i-starting_page].sentences
+            sentence_store_dict['wordMap'] = sentence_stores[i-starting_page].wordMap
             json.dump(sentence_store_dict, file)
 
         print("Wrote page " + str(i))
         # Write one file for each page, first sentence of each page has /n/n/n/n/n
 
-write_html_interlinear("textcreation/texts/interlinearouts/interlinearabuatapoem.json", "textcreation/texts/templates/infernotemplate.html", "app/templates/texts/", "persian_poems", "Mohammad Taqi Bahar", "Mohammad Taqi Bahar", 'persian')
+write_html_interlinear("textcreation/texts/interlinearouts/interlinearWitt3.json", "textcreation/texts/templates/infernotemplate.html", "app/templates/texts/", "PI", "PI", "PI", German(), starting_page=4)

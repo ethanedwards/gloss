@@ -53,5 +53,6 @@ prompt_dict = {
     'freude': 'ChatFreude',
     'zarathustra': 'ChatZarathustra',
     'sinocismtest': 'ChatChinese',
-    'persian_poems': 'ChatPersianPoems'
+    'persian_poems': 'ChatPersianPoems',
+    'castlevania': 'ChatCastlevania'
 }

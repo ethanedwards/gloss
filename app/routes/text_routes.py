@@ -12,7 +12,7 @@ TEXT_CONFIG = {
         'sentence_store': 'texts/inferno/sentence_stores/inferno_{}.json'
     },
     'lahiri': {
-        'pages': 18,
+        'pages': 19,
         'template_base': 'texts/lahiri/lahiri_{}.html',
         'sentence_store': 'texts/lahiri/sentence_stores/lahiri_{}.json'
     },
@@ -37,10 +37,20 @@ TEXT_CONFIG = {
         'sentence_store': 'texts/sinocismtest/sentence_stores/sinocismtest_{}.json'
     },
     'persian_poems': {
-        'pages': 1,
+        'pages': 2,
         'template_base': 'texts/persian_poems/persian_poems_{}.html',
         'sentence_store': 'texts/persian_poems/sentence_stores/persian_poems_{}.json'
     },
+    'castlevania': {
+        'pages': 2,
+        'template_base': 'texts/castlevania/castlevania_{}.html',
+        'sentence_store': 'texts/castlevania/sentence_stores/castlevania_{}.json'
+    },
+    'PI': {
+        'pages': 6,
+        'template_base': 'texts/PI/PI_{}.html',
+        'sentence_store': 'texts/PI/sentence_stores/PI_{}.json'
+    }
     # Add other texts...
 }
 
