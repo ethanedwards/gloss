@@ -44,6 +44,11 @@ def scrape_page(url):
                     "source": source.strip(),
                     "translation": translation.strip()
                 })
+
+    data.append({
+        "source": "END",
+        "translation": "END"
+    })
     
     # Find the link to the next page
     next_link = soup.find('div', class_='next').find('a')
@@ -67,7 +72,7 @@ def main():
             break
 
     # Save to JSON file
-    with open('ff6_translations.json', 'w', encoding='utf-8') as f:
+    with open('ff6_translations_sectioned.json', 'w', encoding='utf-8') as f:
         json.dump(all_data, f, ensure_ascii=False, indent=2)
 
     print(f"Scraping complete. Data saved to ff6_translations.json")

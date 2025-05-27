@@ -1,9 +1,11 @@
 from languages.language import Language
+from pypinyin import Style, pinyin as pypinyin
 import spacy
 
 class Chinese(Language):
     def __init__(self):
         self.nlp = spacy.load("zh_core_web_trf")
+        self.name = "chinese"
 
     def get_grammar(self, word:str, sent:str, ind:int):
         # Placeholder for noun declension logic specific to German
@@ -31,3 +33,6 @@ class Chinese(Language):
                 print("Error parsing French")
         
         return outlist
+    
+    def get_readings(self, word:str):
+        return ''.join([item[0] for item in pypinyin(word, style=Style.TONE)])

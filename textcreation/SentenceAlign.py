@@ -41,9 +41,25 @@ def TokenizeSentences(text):
         if not paragraph.strip():  # Skip empty paragraphs
             continue
             
-        # Tokenize each paragraph into sentences
-        sentences = nltk.sent_tokenize(paragraph)
-        
+        # For Chinese text, split on common Chinese sentence-ending punctuation
+        if any('\u4e00' <= char <= '\u9fff' for char in paragraph):  # Check if text contains Chinese characters
+            # Common Chinese sentence-ending punctuation: 。！？!?
+            sentences = []
+            current_sentence = ""
+            for char in paragraph:
+                current_sentence += char
+                if char in '。！？!?':
+                    if current_sentence.strip():
+                        sentences.append(current_sentence.strip())
+                    current_sentence = ""
+            if current_sentence.strip():  # Add any remaining text
+                sentences.append(current_sentence.strip())
+        else:
+            # Use NLTK for non-Chinese text
+            sentences = nltk.sent_tokenize(paragraph)
+            
+        print(f"paragraph: {paragraph}")
+        print(f"sentences in paragraph: {len(sentences)}")
         # Process each sentence within the paragraph
         start = 0
         for sentence in sentences:
@@ -107,7 +123,7 @@ def AlignSentences(sourcesents, transsents, model):
         #Make sure there are translations left
         if transindex >= len(transsents):
             print("No more translations left")
-            break
+            transindex = len(transsents)-1
         #Initialize topscore
         topscore = minscore
         toptrans = ""
@@ -128,7 +144,7 @@ def AlignSentences(sourcesents, transsents, model):
                 score -= sizedif
                 score -= indexdif
                 #print(f'Score for {sourcesent} and {combsentence} is {score}')
-                print(score)
+                #print(score)
                 #If the score is higher than the topscore, update the topscore
                 if score > topscore:
                     topscore = score
@@ -181,7 +197,7 @@ def AlignSentencesBruteForce(sourcesents, transsents, model):
         #Make sure there are translations left
         if transindex >= len(transsents):
             print("No more translations left")
-            break
+            transindex = len(transsents)-1
         #Initialize topscore
         topscore = minscore
         toptrans = ""
@@ -263,25 +279,70 @@ def write_to_json(source_list, translation_list, file_name='translation.json'):
         json.dump(translation_pairs, file, ensure_ascii=False)
 
 
-#Put it all together
-content1 = open('textcreation/texts/sources/Witt3de.txt', 'r').read()
-content2 = open('textcreation/texts/sources/Witt3en.txt', 'r').read()
 # Divide the content into sections denoted by newline then a number followed by a period
 # Extract sections and their numbers using regex
 def extract_numbered_sections(content):
-    # Match any text up until we find a newline followed by numbers and a period
-    pattern = r'(?:.*?)(?:\n(\d+)\.(.*?))?(?=\n\d+\.|$)'
+    # Match sections that start with a number and period on its own line, 
+    # followed by content until the next section number
+    pattern = r'\n(\d+)\.\s*\n\s*(.*?)(?=\n\d+\.\s*\n|$)'
     matches = re.finditer(pattern, content, re.DOTALL)
     sections = []
+    
     for match in matches:
-        if match.group(1):  # if we found a number
-            section_num = int(match.group(1))
-            section_text = match.group(2).strip()
-            sections.append(" ".join([str(section_num), section_text]))
+        section_num = int(match.group(1))
+        section_text = match.group(2).strip()
+        sections.append(f"{section_num} {section_text}")
+    
     return sections
 
-sections1 = extract_numbered_sections(content1)
-sections2 = extract_numbered_sections(content2)
+def get_line_ranges(sources, sourcefile, transfile):
+    line_mappings = []
+    for source_line in sources:
+        # Find position of source_line in sourcefile
+        pos = sourcefile.find(source_line)
+        if pos == -1:
+            print(f"Warning: Couldn't find '{source_line}' in source file")
+            continue
+            
+        # Count newlines before this position to get line number
+        line_num = sourcefile.count('\n', 0, pos)
+        print(f"Line number: {line_num}")
+        
+        # Split transfile into lines
+        trans_lines = transfile.split('\n')
+        
+        # Get one line before and after, but don't go out of bounds
+        start_line = max(0, line_num - 1)
+        end_line = min(len(trans_lines) - 1, line_num + 1)
+        
+        # Get the range of translation lines
+        trans_text = ' '.join(trans_lines[start_line:end_line + 1])
+        print(f"Trans text: {trans_text}")
+        line_mappings.append(trans_text)
+    
+    return line_mappings
+
+def extract_sections(content, divider="---"):
+    sections = content.split(divider)
+    return sections
+
+#sections1 = extract_numbered_sections(content1)
+#sections2 = extract_numbered_sections(content2)
+
+#sections1 = extract_sections(content1)
+#sections2 = extract_sections(content2)
+
+#Put it all together
+content1 = open('textcreation/texts/sources/redchamber.zh', 'r').read()
+content2 = open('textcreation/texts/sources/redchamber.eng', 'r').read()
+
+# remove all numbers from content1 and content2
+content1 = re.sub(r'\d+', '', content1)
+content2 = re.sub(r'\d+', '', content2)
+
+
+sections1 = [content1]
+sections2 = [content2]
 
 
 sourcelist = []
@@ -289,11 +350,30 @@ translist = []
 print(len(sections1))
 print(len(sections2))
 assert(len(sections1) == len(sections2))
+
+
+
 for i in range(len(sections1)):
     print(sections1[i])
-    sources, trans = GetSentences(sections1[i], sections2[i])
-    #sources, trans = GetSentences('../Novels/proustfr.txt', '../Novels/prousten.txt')
+    #sources, trans = GetSentences(sections1[i], sections2[i])
+    sources = sections1[i].split("\n")
+    print(sources)
+
+    #line_mappings = get_line_ranges(sources, content1, content2)
+    sources, trans = GetSentences(content1, content2)
+    print(f"len(sources): {len(sources)}")
+    #Use aligner
     outsource, outtrans = AlignSentences(sources, trans, model)
+    #Just use passage as translation
+    #outsource = sources
+
+    # based on lines
+    #outtrans = line_mappings
+
+    # put all translation of section into the match for the setnence
+    #transsectionstring = "".join(trans)
+    #outtrans = [transsectionstring] * len(sources)
+
     sourcelist.extend(outsource)
     translist.extend(outtrans)
     # Add blank lines between sections
@@ -301,4 +381,4 @@ for i in range(len(sections1)):
     translist.append("")
     print(f"added {i}")
 
-write_to_json(sourcelist, translist, file_name='textcreation/texts/aligned/Witt3.json')
+write_to_json(sourcelist, translist, file_name='textcreation/texts/aligned/redchamber.json')

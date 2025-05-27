@@ -8,6 +8,7 @@ class Japanese(Language):
     def __init__(self):
         self.tagger = fugashi.Tagger()
         self.kakasi = pykakasi.kakasi()
+        self.name = "japanese"
     
     def get_grammar(self, word: str, sent: str, ind: int):
         # Parse the sentence and find the specific word instance

@@ -67,6 +67,8 @@ class claude(llm):
     def get_completion_stream_sync(self, messages:dict, model:str="claude-3-5-sonnet-20241022", max_tokens:int=1024, temperature:float=0.8, method=print):
         system = messages[0]
         messages = messages[1:]
+        print(f"Messages: {messages}")
+        print(f"System: {system}")
         stream = self.client.messages.create(
             max_tokens=max_tokens,
             system=system,

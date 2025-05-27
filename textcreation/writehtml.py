@@ -8,7 +8,10 @@ import jieba  # Add this import at the top of the file
 import MeCab
 from languages.japanese import Japanese
 from languages.german import German
-
+from languages.latin import Latin
+from languages.oldenglish import OldEnglish
+from languages.chinese import Chinese
+from languages.persian import Persian
 # Define additional punctuation marks
 ADDITIONAL_PUNCTUATION = '«»„"‹›''""-–—'
 # Combine with standard punctuation
@@ -67,7 +70,12 @@ def processInterlinear(datalist, language=''):
     sentence_store = sentenceStore()
     #Loop through each entry
     for entry in datalist:
-        add, store = processSource(entry, stracker, language)
+        # normal languages
+        #add, store = processSource(entry, stracker, language)
+        # japanese
+        add, store = processSourceInterlinearFirst(entry, stracker, language)
+        # chinese
+        # add, store = processSourceTextFirst(entry, stracker, language)
         #print(str(store.sentences))
         # check if the pattern \n\n\n\n\n\n all caps \n\n\n\n\n\n is in str(store.sentences) or if it has 2. 3. or 4.
         #Chapter Checker
@@ -347,27 +355,57 @@ def processSourceInterlinearFirst(entry, stracker, language):
 
         sentence_id = stracker.sentence_id
 
-        #get the beginning of runningtext before the gloss_word
-        runningtext_before = runningtext[:runningtext.find(gloss_word.strip())]
-        if runningtext_before != "":
-            print(f"runningtext_before is {runningtext_before}")
-            elements = runningtext_before.split("\n")
-            for element in elements:
-                if element == "":
-                    runninghtml += """
-                    </div> 
-                    <div class="word-group">"""
-                else:
-                    word_id = generate_word_id(runningtext_before)
-                    sentence_data = {
-                        'source': text,
-                        'translation': translation
-                    }
-                    runninghtml += getHTML(word=element, gloss="", word_id=word_id, sentence_id=sentence_id, language=language)
-                    sentence_store.sentences[sentence_id] = sentence_data
-                    sentence_store.wordMap[word_id] = sentence_id
+        # Create a mapping between normalized and original text positions
+        char_map = []
+        normalized_runningtext = ""
+        
+        for i, char in enumerate(runningtext):
+            if not (char.isspace() or re.match(r'[^\w\s]', char)):
+                normalized_runningtext += char
+                char_map.append(i)
+        
+        # Normalize the gloss word
+        normalized_gloss = ''.join(c for c in gloss_word if not (c.isspace() or re.match(r'[^\w\s]', c)))
+        
+        # Find the match in normalized text
+        match_index = normalized_runningtext.find(normalized_gloss)
+        
+        if match_index != -1:
+            # Get the actual position in the original text
+            try:
+                original_start_index = char_map[match_index]
+                original_end_index = char_map[match_index + len(normalized_gloss) - 1] + 1
+                
+                # Extract the exact matching portion from the original text
+                matched_original = runningtext[original_start_index:original_end_index]
+                
+                print(f"Found match: '{matched_original}' at positions {original_start_index}:{original_end_index}")
+                
+                # Extract the text before the match
+                runningtext_before = runningtext[:original_start_index]
+                if runningtext_before != "" and runningtext_before != "\n":
+                    print(f"runningtext_before is {runningtext_before}")
 
-            runningtext = runningtext[len(runningtext_before):]
+                elements = runningtext_before.split("\n")
+                for element in elements:
+                    if element == "":
+                        pass
+                        # runninghtml += """
+                        # </div> 
+                        # <div class="word-group">"""
+                    else:
+                        word_id = generate_word_id(runningtext_before)
+                        sentence_data = {
+                            'source': text,
+                            'translation': translation
+                        }
+                        runninghtml += getHTML(word=element, gloss="", word_id=word_id, sentence_id=sentence_id, language=language)
+                        sentence_store.sentences[sentence_id] = sentence_data
+                        sentence_store.wordMap[word_id] = sentence_id
+
+                runningtext = runningtext[original_end_index:]
+            except:
+                print(f"Couldn't get match for gloss {gloss_word}")
 
         
         word_id = generate_word_id(gloss_word)
@@ -383,10 +421,14 @@ def processSourceInterlinearFirst(entry, stracker, language):
         reading = ""
         words = language.parse_sent(gloss_word)
         for lookupword in words:
-            grammar += lookupword[4]
-            dictionaryforms += " " + lookupword[1]
-            pos += " " + lookupword[2]
-            reading += " " + lookupword[3]
+            if len(lookupword) > 4:
+                grammar += lookupword[4]
+            if len(lookupword) > 1:
+                dictionaryforms += " " + lookupword[1]
+            if len(lookupword) > 2:
+                pos += " " + lookupword[2]
+            if len(lookupword) > 3:
+                reading += " " + lookupword[3]
 
 
         sentence_id = stracker.sentence_id
@@ -414,18 +456,30 @@ def getHTML(word, gloss, word_id, sentence_id, language):
     # Get morphological analysis from language parser
     words = language.parse_sent(word)
     for lookupword in words:
-        grammar += lookupword[4]
-        dictionaryforms += " " + lookupword[1]
-        pos += " " + lookupword[2]
+        if len(lookupword) > 4:
+            grammar += lookupword[4]
+        if len(lookupword) > 1:
+            dictionaryforms += " " + lookupword[1]
+        if len(lookupword) > 2:
+            pos += " " + lookupword[2]
 
     # Generate ruby markup using kakashi
-    word_with_ruby = ""
-    tokens = language.get_readings(word)  # Returns list of (kanji, kana) pairs
-    for kanji, kana in tokens:
-        if language.is_kanji_compound(kanji):
-            word_with_ruby += f'<ruby>{kanji}<rt>{kana}</rt></ruby>'
-        else:
-            word_with_ruby += kanji
+    if language.name == "japanese":
+        word_with_ruby = ""
+        tokens = language.get_readings(word)  # Returns list of (kanji, kana) pairs
+        for kanji, kana in tokens:
+            if language.is_kanji_compound(kanji):
+                word_with_ruby += f'<ruby>{kanji}<rt>{kana}</rt></ruby>'
+            else:
+                word_with_ruby += kanji
+    else:
+        word_with_ruby = word
+
+    # Get pinyin for Chinese
+    if language.name == "chinese":
+        reading = language.get_readings(word)
+    else:
+        reading = ""
     
     addhtml = f"""
     <div class="word" title="{grammar}" data-word-id="{word_id}" data-sentence-id="{sentence_id}">
@@ -433,6 +487,7 @@ def getHTML(word, gloss, word_id, sentence_id, language):
         <div class="gloss">{gloss}</div>
         <div class="alt">{""}</div>
         <div class="pos">{pos}</div>
+        <div class="reading">{reading}</div>
         <div class="dictionary">{dictionaryforms}</div>
     </div>
     """
@@ -449,6 +504,9 @@ def processSource(entry, stracker, language=''):
     if stracker.current_sentence != text:
         stracker.current_sentence = text
         stracker.increase()
+        runninghtml = """
+                </div> 
+                <div class="word-group">"""
 
     sentence_store = sentenceStore()
     # Regex pattern with capturing groups:
@@ -520,89 +578,91 @@ def processSource(entry, stracker, language=''):
                 # check if the gloss is a smaller substring of the word, disincluding punctuation
                 word_no_punct = ''.join(c for c in word if c.isalnum())
                 # pop empty interlinears
-                while len(interlinear) > 0 and len(interlinear[0][0].strip()) == 0:
+                while interlinear and len(interlinear) > 0 and len(interlinear[0][0].strip()) == 0:
                     interlinear.pop(0)
-                if len(interlinear) == 0:
+                if interlinear and len(interlinear) == 0:
                     print("No interlinear gloss found for word " + word)
                     element_counter += 1
                     continue
+
+                if interlinear and len(interlinear) > 0:
                 
-                gloss = interlinear[0]
-                gloss_word = gloss[0].strip()
-                gloss_no_punct = ''.join(c for c in gloss_word if c.isalnum())
-                print(f"gloss_no_punct is {gloss_no_punct} and word_no_punct is {word_no_punct}")
-                # If the cleaned word contains the cleaned gloss and they're not identical
-                if len(gloss_no_punct) < len(word_no_punct) and len(gloss_no_punct) > 0 and gloss_no_punct in word_no_punct and gloss_no_punct != word_no_punct:
-                    print("Found gloss " + gloss_word + " for word " + word)
-                    # Update word to be the gloss unit instead
-                    word = gloss_word
-                    interlineargloss = gloss[1]
-                    if len(gloss) > 2:
-                        interlinearalt = gloss[2]
-                    if len(gloss) > 3:
-                        interlinearlit = gloss[3]
+                    gloss = interlinear[0]
+                    gloss_word = gloss[0].strip()
+                    gloss_no_punct = ''.join(c for c in gloss_word if c.isalnum())
+                    print(f"gloss_no_punct is {gloss_no_punct} and word_no_punct is {word_no_punct}")
+                    # If the cleaned word contains the cleaned gloss and they're not identical
+                    if len(gloss_no_punct) < len(word_no_punct) and len(gloss_no_punct) > 0 and gloss_no_punct in word_no_punct and gloss_no_punct != word_no_punct:
+                        print("Found gloss " + gloss_word + " for word " + word)
+                        # Update word to be the gloss unit instead
+                        word = gloss_word
+                        if len(gloss) > 1:
+                            interlineargloss = gloss[1]
+                        if len(gloss) > 2:
+                            interlinearalt = gloss[2]
+                        if len(gloss) > 3:
+                            interlinearlit = gloss[3]
 
-                    # remove the gloss substring from the element
-                    elements[i] = elements[i].replace(gloss_word, '', 1)
-                    interlinear.pop(0)
-                    glossoffset += -1
-                    element_count += 1
-                # otherwise normal procedure
+                        # remove the gloss substring from the element
+                        elements[i] = elements[i].replace(gloss_word, '', 1)
+                        interlinear.pop(0)
+                        glossoffset += -1
+                        element_count += 1
+                    # otherwise normal procedure
 
-                else:
-                    #Try to find exact match first
-                    for j, gloss in enumerate(interlinear):
-                        #Strip gloss of trailing whitespace
-                        gloss[0] = gloss[0].strip()
-                        firstword = gloss[0].split(" ")[0]
-                        #print("comparison is " + firstword + " and " + element)
+                    else:
+                        #Try to find exact match first
+                        for j, gloss in enumerate(interlinear):
+                            #Strip gloss of trailing whitespace
+                            gloss[0] = gloss[0].strip()
+                            firstword = gloss[0].split(" ")[0]
+                            #print("comparison is " + firstword + " and " + element)
 
-                        #for non spaced languages, augment until it fits
-                        #glossindex = j
-                        #while string_similarity_normal(firstword, element) < stringthreshhold and glossindex < len(interlinear):
-                        #    firstword += interlinear[glossindex][0]
-                        #    glossindex += 1
-                        #    pops = glossindex - j
-                        
+                            #for non spaced languages, augment until it fits
+                            #glossindex = j
+                            #while string_similarity_normal(firstword, element) < stringthreshhold and glossindex < len(interlinear):
+                            #    firstword += interlinear[glossindex][0]
+                            #    glossindex += 1
+                            #    pops = glossindex - j
+                            
 
-                        #Try to find exact match first  
-                        if string_similarity_normal(firstword, element) > stringthreshhold or firstword in element:
-                            #Go forward and get all words in the rest of the phrase
-                            #Should do nothing if only one word
-                            forwardindex = i+1
-                            forwardindexlookahead = i+3
-                            fwords = gloss[0].split(" ")[1:]
-                            for fword in fwords:
-                                while forwardindex < forwardindexlookahead and forwardindex < len(elements):
-                                    #Add next to words
-                                    nextel = elements[forwardindex]
-                                    #print(nextel)
-                                    if string_similarity_normal(fword, nextel) > stringthreshhold:
-                                        if language != 'chinese':
-                                            word += " " + fword 
-                                        else:
-                                            word += fword
-                                        #Add all previous indexes to naughty list
-                                        #Append all elements in the range
-                                        throughlist.extend(range(i, forwardindex+1))
-                                        forwardindexlookahead += 2
-                                    forwardindex+=1
-                            try:
-                                print("Got gloss " + gloss[0] + " for word " + word + " gloss 1 is " + gloss[1])
-                                interlineargloss = gloss[1]
-                                #check if there are any other glosses
-                                if len(gloss) > 2:
-                                    interlinearalt = gloss[2]
-                                if len(gloss) > 3:
-                                    interlinearlit = gloss[3]
-                                print(f"popping gloss {j} for word {word}")
-                                for k in range(j+1):
-                                    interlinear.pop(0)
-                                #interlinear.pop(j)
-                                
-                            except:
-                                print(f"Couldn't get gloss for word {word}")
-                            break
+                            #Try to find exact match first  
+                            if string_similarity_normal(firstword, element) > stringthreshhold or firstword in element:
+                                #Go forward and get all words in the rest of the phrase
+                                #Should do nothing if only one word
+                                forwardindex = i+1
+                                forwardindexlookahead = i+3
+                                fwords = gloss[0].split(" ")[1:]
+                                for fword in fwords:
+                                    while forwardindex < forwardindexlookahead and forwardindex < len(elements):
+                                        #Add next to words
+                                        nextel = elements[forwardindex]
+                                        #print(nextel)
+                                        if string_similarity_normal(fword, nextel) > stringthreshhold:
+                                            if language != 'chinese':
+                                                word += " " + fword 
+                                            else:
+                                                word += fword
+                                            #Add all previous indexes to naughty list
+                                            #Append all elements in the range
+                                            throughlist.extend(range(i, forwardindex+1))
+                                            forwardindexlookahead += 2
+                                        forwardindex+=1
+                                try:
+                                    print("Got gloss " + gloss[0] + " for word " + word + " gloss 1 is " + gloss[1])
+                                    interlineargloss = gloss[1]
+                                    #check if there are any other glosses
+                                    if len(gloss) > 2:
+                                        interlinearalt = gloss[2]
+                                    if len(gloss) > 3:
+                                        interlinearlit = gloss[3]
+                                    print(f"popping gloss {j} for word {word}")
+                                    # Just pop the specific gloss at index j instead of multiple glosses
+                                    interlinear.pop(j)
+                                    
+                                except:
+                                    print(f"Couldn't get gloss for word {word}")
+                                break
 
                 #Get all words for the gloss
                 grammar = ""
@@ -662,7 +722,9 @@ def text_to_html(text):
 
 
 def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, description, language, starting_page=1):
+    # normal languages
     interlineartexts, sentence_stores = processInterlinear(getJSON(jsonfile), language)
+
     html_template = open(htmltemplate, 'r').read()
     # enumerate starts at 1
     for i, interlineartext in enumerate(interlineartexts, starting_page):
@@ -687,4 +749,4 @@ def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, descrip
         print("Wrote page " + str(i))
         # Write one file for each page, first sentence of each page has /n/n/n/n/n
 
-write_html_interlinear("textcreation/texts/interlinearouts/interlinearWitt3.json", "textcreation/texts/templates/infernotemplate.html", "app/templates/texts/", "PI", "PI", "PI", German(), starting_page=4)
+write_html_interlinear("textcreation/texts/interlinearouts/interlinearredchamber.json", "textcreation/texts/templates/infernotemplate.html", "app/templates/texts/", "redchamber", "redchamber", "redchamber", Chinese(), starting_page=1)

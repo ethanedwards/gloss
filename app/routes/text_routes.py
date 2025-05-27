@@ -42,14 +42,39 @@ TEXT_CONFIG = {
         'sentence_store': 'texts/persian_poems/sentence_stores/persian_poems_{}.json'
     },
     'castlevania': {
-        'pages': 2,
+        'pages': 4,
         'template_base': 'texts/castlevania/castlevania_{}.html',
         'sentence_store': 'texts/castlevania/sentence_stores/castlevania_{}.json'
     },
     'PI': {
-        'pages': 6,
+        'pages': 8,
         'template_base': 'texts/PI/PI_{}.html',
         'sentence_store': 'texts/PI/sentence_stores/PI_{}.json'
+    },
+    'confessiones': {
+        'pages': 2,
+        'template_base': 'texts/confessiones/confessiones_{}.html',
+        'sentence_store': 'texts/confessiones/sentence_stores/confessiones_{}.json'
+    },
+    'arsamatoria': {
+        'pages': 1,
+        'template_base': 'texts/arsamatoria/arsamatoria_{}.html',
+        'sentence_store': 'texts/arsamatoria/sentence_stores/arsamatoria_{}.json'
+    },
+    'rood': {
+        'pages': 1,
+        'template_base': 'texts/rood/rood_{}.html',
+        'sentence_store': 'texts/rood/sentence_stores/rood_{}.json'
+    },
+    'redchamber': {
+        'pages': 1,
+        'template_base': 'texts/redchamber/redchamber_{}.html',
+        'sentence_store': 'texts/redchamber/sentence_stores/redchamber_{}.json'
+    },
+    'afsharitasnif': {
+        'pages': 1,
+        'template_base': 'texts/afsharitasnif/afsharitasnif_{}.html',
+        'sentence_store': 'texts/afsharitasnif/sentence_stores/afsharitasnif_{}.json'
     }
     # Add other texts...
 }

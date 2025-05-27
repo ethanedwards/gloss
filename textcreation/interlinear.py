@@ -5,6 +5,8 @@ from tqdm import tqdm
 import asyncio
 from languages.language import Language
 from languages.german import German
+from languages.latin import Latin
+from languages.oldenglish import OldEnglish
 from languages.french import French
 from languages.italian import Italian
 from languages.spanish import Spanish
@@ -73,7 +75,8 @@ async def getTranslations(source_list, translation_list, llm, userprompt, system
     # First pass - collect async requests for non-empty entries
     for i, (source, translation) in enumerate(zip(source_list, translation_list)):
         if source.strip() and translation.strip():
-            prompt = userprompt.format(german=source.strip(), english=translation.strip())
+            #prompt = userprompt.format(chinese=source.strip(), english=translation.strip())
+            prompt = userprompt.format(persian=source.strip())
             messages = llm.format_messages(userprompt=prompt, systemprompt=systemprompt)
             async_request = llm.get_completion_async(messages=messages)
             async_requests.append(async_request)
@@ -117,6 +120,22 @@ async def getTranslationAndInterlinear(source, llm, userprompt, systemprompt, la
     parseinfo = language.parse_sent(source)
     return {"source": source, "translation": translation, "interlinear": interlist, "parseinfo": parseinfo, "rawoutput": result}
 
+async def getTranslationAndInterlinearExcerpts(sourcelist, source, llm, userprompt, systemprompt, language: Language = Persian()):
+    outputlist = []
+    for excerpt in sourcelist:
+        source.strip()
+        print(excerpt)
+        excerpt.strip()
+        prompt = userprompt.format(persian=source.strip(), excerpt=excerpt.strip())
+        messages = llm.format_messages(userprompt=prompt, systemprompt=systemprompt)
+        async_request = llm.get_completion_async(messages=messages)
+        result = await async_request
+        interlist, translation = parseInterlinearWithTranslation(result)
+        parseinfo = language.parse_sent(excerpt)
+        outputlist.append({"source": excerpt, "translation": translation, "interlinear": interlist, "parseinfo": parseinfo, "rawoutput": result})
+    return outputlist
+
+
 def getTranslationsResults(llmout, source, translation, language):
     result = llmout
     interlist = parseInterlinear(result)
@@ -139,24 +158,28 @@ def parseHindi():
 if __name__ == '__main__':
     #load yml file for prompts
     lib = promptlibrary("textcreation/promptlibrary.yml")
-    userprompt = lib.find_prompt_by_title("InterlinearUserGerman")
-    systemprompt = lib.find_prompt_by_title("InterlinearSystemGerman")
+    userprompt = lib.find_prompt_by_title("InterlinearUserPersianPoetryExcerpt")
+    systemprompt = lib.find_prompt_by_title("InterlinearSystemPersianPoetry")
 
     llm = claude()
     
-    source_list, translation_list = zipsources("textcreation/texts/aligned/Witt3.json")
+    source_list, translation_list = zipsources("textcreation/texts/aligned/redchamber.json")
     #source_list = [open("textcreation/texts/sources/sinocismtestch.txt", 'r').read()]
     #translation_list = [open("textcreation/texts/sources/sinocismtesten.txt", 'r').read()]
 
-    #source = open("textcreation/texts/sources/ramkeli.txt", 'r').read()
+    source = open("textcreation/texts/sources/afsharitasnif.txt", 'r').read()
+    # split every 2 lines
+    source_list = ["\n".join(source.split("\n")[i:i+2]) for i in range(0, len(source.split("\n")), 2)]
     #sources = source.split("\n\n")
     #print("Getting translations")
-    translations = asyncio.run(getTranslations(source_list, translation_list, llm, userprompt, systemprompt, language=German()))
+    #translations = asyncio.run(getTranslations(source_list, translation_list, llm, userprompt, systemprompt, language=Chinese()))
     #parses = asyncio.run(getParses(source_list, translation_list, llm, userprompt, systemprompt, language=Japanese()))
-    #interlinear = asyncio.run(getTranslationAndInterlinear(source, llm, userprompt, systemprompt, language=Persian()))
+    #persian poems
+    interlinear = asyncio.run(getTranslationAndInterlinearExcerpts(sourcelist=source_list, source=source, llm=llm, userprompt=userprompt, systemprompt=systemprompt, language=Persian()))
    # interlinear = [interlinear] + [asyncio.run(getTranslationAndInterlinear(sources[1], llm, userprompt, systemprompt, language=Persian()))]
-    with open("textcreation/texts/interlinearouts/interlinearWitt3.json", 'w', encoding='utf8') as file:
-        json.dump(translations, file, ensure_ascii=False)
+    
+    with open("textcreation/texts/interlinearouts/interlinearafsharitasnif.json", 'w', encoding='utf8') as file:
+        json.dump(interlinear, file, ensure_ascii=False)
 
 
 
