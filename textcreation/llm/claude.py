@@ -33,7 +33,7 @@ class claude(llm):
         
 
     @retry(wait=wait_random_exponential(min=5, max=60), stop=stop_after_attempt(6), before_sleep=before_sleep_log(logger, logging.WARNING))
-    async def get_completion_async(self, messages:dict, model:str="claude-3-5-sonnet-20241022", max_tokens:int=1024, temperature:float=0.8):
+    async def get_completion_async(self, messages:dict, model:str="claude-sonnet-4-20250514", max_tokens:int=1024, temperature:float=0.8):
         while self.requestcount >= self.requestmax:
             await asyncio.sleep(60)
         self.requestcount += 1
@@ -47,11 +47,11 @@ class claude(llm):
             raise
     
     @retry(wait=wait_random_exponential(min=5, max=60), stop=stop_after_attempt(6))
-    def get_completion_sync(self, messages:dict, model:str="claude-3-opus-20240229", max_tokens:int=1024, temperature:float=0.8):
+    def get_completion_sync(self, messages:dict, model:str="claude-sonnet-4-20250514", max_tokens:int=1024, temperature:float=0.8):
         message = self.create_api_message(self.client, messages, model, max_tokens, temperature)
         return message.content[0].text
     
-    async def get_completion_stream_async(self, messages:dict, model:str="claude-3-5-sonnet-20241022", max_tokens:int=1024, temperature:float=0.8, method=print):
+    async def get_completion_stream_async(self, messages:dict, model:str="claude-sonnet-4-20250514", max_tokens:int=1024, temperature:float=0.8, method=print):
         system = messages[0]
         messages = messages[1:]
         stream = await self.aclient.messages.create(
@@ -64,7 +64,7 @@ class claude(llm):
         async for event in stream:
             method(event)
 
-    def get_completion_stream_sync(self, messages:dict, model:str="claude-3-5-sonnet-20241022", max_tokens:int=1024, temperature:float=0.8, method=print):
+    def get_completion_stream_sync(self, messages:dict, model:str="claude-sonnet-4-20250514", max_tokens:int=1024, temperature:float=0.8, method=print):
         system = messages[0]
         messages = messages[1:]
         print(f"Messages: {messages}")
@@ -94,7 +94,7 @@ class claude(llm):
             messages.append({"role": item["role"], "content": item["content"]})
         return messages
     
-    def create_api_message(self, cli, messages:dict, model:str="claude-3-5-sonnet-20241022", max_tokens:int=1024, temperature:float=0.8):
+    def create_api_message(self, cli, messages:dict, model:str="claude-sonnet-4-20250514", max_tokens:int=1024, temperature:float=0.8):
         #Remove the system prompt
         system = messages[0]
         messages = messages[1:]
