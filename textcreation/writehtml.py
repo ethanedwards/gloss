@@ -13,7 +13,7 @@ from languages.oldenglish import OldEnglish
 from languages.chinese import Chinese
 from languages.persian import Persian
 # Define additional punctuation marks
-ADDITIONAL_PUNCTUATION = '«»„"‹›''""-–—'
+ADDITIONAL_PUNCTUATION = '«»„"‹›''""-–—？，！。：；「」《》'
 # Combine with standard punctuation
 EXTENDED_PUNCTUATION = string.punctuation + ADDITIONAL_PUNCTUATION
 
@@ -394,6 +394,38 @@ def processSourceInterlinearFirst(entry, stracker, language):
                         # </div> 
                         # <div class="word-group">"""
                     else:
+                        if element in EXTENDED_PUNCTUATION or element.strip() in EXTENDED_PUNCTUATION:
+                            print(f"Adding unmatched punctuation: {element}")
+                            
+                            # Check if this is the first item in runninghtml (no word divs yet)
+                            if '<div class="word"' not in runninghtml:
+                                runninghtml += element
+                            else:
+                                # Find the last word div and append punctuation to its main word content
+                                # Find the last occurrence of word div opening tag
+                                last_word_start = runninghtml.rfind('<div class="word"')
+                                
+                                if last_word_start != -1:
+                                    # Find the end of the opening tag
+                                    tag_end = runninghtml.find('>', last_word_start)
+                                    
+                                    if tag_end != -1:
+                                        # Find the first nested div (which contains the gloss)
+                                        first_nested_div = runninghtml.find('<div class="gloss">', tag_end)
+                                        
+                                        if first_nested_div != -1:
+                                            # Insert the punctuation right before the first nested div
+                                            runninghtml = runninghtml[:first_nested_div] + element + runninghtml[first_nested_div:]
+                                        else:
+                                            # Fallback: just add to runninghtml if structure is unexpected
+                                            runninghtml += element
+                                    else:
+                                        # Fallback: just add to runninghtml if pattern doesn't match
+                                        runninghtml += element
+                                else:
+                                    # Fallback: just add to runninghtml if no word div found
+                                    runninghtml += element
+                            continue
                         word_id = generate_word_id(runningtext_before)
                         sentence_data = {
                             'source': text,
@@ -437,6 +469,39 @@ def processSourceInterlinearFirst(entry, stracker, language):
             'source': text,
             'translation': translation
         }
+
+        if gloss_word in EXTENDED_PUNCTUATION or gloss_word.strip() in EXTENDED_PUNCTUATION:
+            print(f"Adding unmatched punctuation: {gloss_word}")
+            
+            # Check if this is the first item in runninghtml (no word divs yet)
+            if '<div class="word"' not in runninghtml:
+                runninghtml += gloss_word
+            else:
+                # Find the last word div and append punctuation to its main word content
+                # Find the last occurrence of word div opening tag
+                last_word_start = runninghtml.rfind('<div class="word"')
+                
+                if last_word_start != -1:
+                    # Find the end of the opening tag
+                    tag_end = runninghtml.find('>', last_word_start)
+                    
+                    if tag_end != -1:
+                        # Find the first nested div (which contains the gloss)
+                        first_nested_div = runninghtml.find('<div class="gloss">', tag_end)
+                        
+                        if first_nested_div != -1:
+                            # Insert the punctuation right before the first nested div
+                            runninghtml = runninghtml[:first_nested_div] + gloss_word + runninghtml[first_nested_div:]
+                        else:
+                            # Fallback: just add to runninghtml if structure is unexpected
+                            runninghtml += gloss_word
+                    else:
+                        # Fallback: just add to runninghtml if pattern doesn't match
+                        runninghtml += gloss_word
+                else:
+                    # Fallback: just add to runninghtml if no word div found
+                    runninghtml += gloss_word
+            continue
         
         runninghtml += getHTML(word=gloss_word, gloss=gloss_gloss, word_id=word_id, sentence_id=sentence_id, language=language)
         sentence_store.sentences[sentence_id] = sentence_data
