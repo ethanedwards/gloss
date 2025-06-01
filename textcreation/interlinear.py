@@ -38,7 +38,7 @@ def parseInterlinearWithTranslation(gptoutput):
         outputlist.append(wordlist)
     return outputlist, translation
 
-def zipsources(jsonfile, stopsource: str = None):
+def zipsources(jsonfile, stopsource: str = None, speakermode: bool = False):
     #Read in the jsonfile
     with open(jsonfile, 'r') as file:
         jsonfile = file.read()
@@ -52,21 +52,24 @@ def zipsources(jsonfile, stopsource: str = None):
     #Separate them into two lists of source and translation
     source_list = []
     translation_list = []
+    speaker_list = []
     for i in range(num_entries):
         source_list.append(jsonfile[i]["source"])
         translation_list.append(jsonfile[i]["translation"])
+        if(speakermode):
+            speaker_list.append(jsonfile[i]["speaker"])
         if((stopsource is not None) and stopsource in jsonfile[i]["source"]):
             print("break!")
             break
 
     print("Source list length: ", len(source_list))
-    return source_list, translation_list
+    return source_list, translation_list, speaker_list
 
 
 
 
 
-async def getTranslations(source_list, translation_list, llm, userprompt, systemprompt, language: Language = French()):
+async def getTranslations(source_list, translation_list, llm, userprompt, systemprompt, language: Language = French(), speaker_list=[]):
     outputlist = []
     async_requests = []
     # Track indices of non-empty entries
@@ -75,8 +78,8 @@ async def getTranslations(source_list, translation_list, llm, userprompt, system
     # First pass - collect async requests for non-empty entries
     for i, (source, translation) in enumerate(zip(source_list, translation_list)):
         if source.strip() and translation.strip():
-            #prompt = userprompt.format(chinese=source.strip(), english=translation.strip())
-            prompt = userprompt.format(persian=source.strip())
+            prompt = userprompt.format(chinese=source.strip(), english=translation.strip())
+            #prompt = userprompt.format(persian=source.strip())
             messages = llm.format_messages(userprompt=prompt, systemprompt=systemprompt)
             async_request = llm.get_completion_async(messages=messages)
             async_requests.append(async_request)
@@ -93,14 +96,18 @@ async def getTranslations(source_list, translation_list, llm, userprompt, system
     for (idx, result) in zip(valid_entries, results):
         source = source_list[idx]
         translation = translation_list[idx]
+        if speaker_list[idx] is not None:
+            speaker = speaker_list[idx]
+        else:
+            speaker = None
         interlist = parseInterlinear(result)
         parseinfo = language.parse_sent(source)
-        outputlist[idx] = {"source": source, "translation": translation, "interlinear": interlist, "parseinfo": parseinfo, "rawoutput": result}
+        outputlist[idx] = {"source": source, "translation": translation, "interlinear": interlist, "parseinfo": parseinfo, "rawoutput": result, "speaker": speaker}
     
     # Fill in empty entries
     for i in range(len(outputlist)):
         if outputlist[i] is None:
-            outputlist[i] = {"source": source_list[i], "translation": translation_list[i], "interlinear": [], "parseinfo": None, "rawoutput": ""}
+            outputlist[i] = {"source": source_list[i], "translation": translation_list[i], "interlinear": [], "parseinfo": None, "rawoutput": "", "speaker": speaker_list[i] if speaker_list[i] is not None else None}
 
     return outputlist
 
@@ -158,28 +165,28 @@ def parseHindi():
 if __name__ == '__main__':
     #load yml file for prompts
     lib = promptlibrary("textcreation/promptlibrary.yml")
-    userprompt = lib.find_prompt_by_title("InterlinearUserPersianPoetryExcerpt")
-    systemprompt = lib.find_prompt_by_title("InterlinearSystemPersianPoetry")
+    userprompt = lib.find_prompt_by_title("InterlinearUserChinese")
+    systemprompt = lib.find_prompt_by_title("InterlinearSystemChinese")
 
     llm = claude()
     
-    source_list, translation_list = zipsources("textcreation/texts/aligned/redchamber.json")
+    source_list, translation_list, speaker_list = zipsources("textcreation/texts/aligned/ninesols1.json", speakermode=True)
     #source_list = [open("textcreation/texts/sources/sinocismtestch.txt", 'r').read()]
     #translation_list = [open("textcreation/texts/sources/sinocismtesten.txt", 'r').read()]
 
-    source = open("textcreation/texts/sources/afsharitasnif.txt", 'r').read()
+    #source = open("textcreation/texts/sources/afsharitasnif.txt", 'r').read()
     # split every 2 lines
-    source_list = ["\n".join(source.split("\n")[i:i+2]) for i in range(0, len(source.split("\n")), 2)]
+    #source_list = ["\n".join(source.split("\n")[i:i+2]) for i in range(0, len(source.split("\n")), 2)]
     #sources = source.split("\n\n")
     #print("Getting translations")
-    #translations = asyncio.run(getTranslations(source_list, translation_list, llm, userprompt, systemprompt, language=Chinese()))
+    translations = asyncio.run(getTranslations(source_list, translation_list, llm, userprompt, systemprompt, language=Chinese(), speaker_list=speaker_list))
     #parses = asyncio.run(getParses(source_list, translation_list, llm, userprompt, systemprompt, language=Japanese()))
     #persian poems
-    interlinear = asyncio.run(getTranslationAndInterlinearExcerpts(sourcelist=source_list, source=source, llm=llm, userprompt=userprompt, systemprompt=systemprompt, language=Persian()))
+    #interlinear = asyncio.run(getTranslationAndInterlinearExcerpts(sourcelist=source_list, source=source, llm=llm, userprompt=userprompt, systemprompt=systemprompt, language=Persian()))
    # interlinear = [interlinear] + [asyncio.run(getTranslationAndInterlinear(sources[1], llm, userprompt, systemprompt, language=Persian()))]
     
-    with open("textcreation/texts/interlinearouts/interlinearafsharitasnif.json", 'w', encoding='utf8') as file:
-        json.dump(interlinear, file, ensure_ascii=False)
+    with open("textcreation/texts/interlinearouts/interlinearninesols1.json", 'w', encoding='utf8') as file:
+        json.dump(translations, file, ensure_ascii=False)
 
 
 

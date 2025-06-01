@@ -333,16 +333,16 @@ def extract_sections(content, divider="---"):
 #sections2 = extract_sections(content2)
 
 #Put it all together
-content1 = open('textcreation/texts/sources/redchamber.zh', 'r').read()
-content2 = open('textcreation/texts/sources/redchamber.eng', 'r').read()
+content1 = open('textcreation/texts/sources/redchamber3zh.txt', 'r').read()
+content2 = open('textcreation/texts/sources/redchamber3en.txt', 'r').read()
 
 # remove all numbers from content1 and content2
 content1 = re.sub(r'\d+', '', content1)
 content2 = re.sub(r'\d+', '', content2)
 
 
-sections1 = [content1]
-sections2 = [content2]
+sections1 = content1.split("---")
+sections2 = content2.split("---")
 
 
 sourcelist = []
@@ -354,13 +354,10 @@ assert(len(sections1) == len(sections2))
 
 
 for i in range(len(sections1)):
-    print(sections1[i])
     #sources, trans = GetSentences(sections1[i], sections2[i])
-    sources = sections1[i].split("\n")
-    print(sources)
 
     #line_mappings = get_line_ranges(sources, content1, content2)
-    sources, trans = GetSentences(content1, content2)
+    sources, trans = GetSentences(sections1[i], sections2[i])
     print(f"len(sources): {len(sources)}")
     #Use aligner
     outsource, outtrans = AlignSentences(sources, trans, model)
@@ -381,4 +378,4 @@ for i in range(len(sections1)):
     translist.append("")
     print(f"added {i}")
 
-write_to_json(sourcelist, translist, file_name='textcreation/texts/aligned/redchamber.json')
+write_to_json(sourcelist, translist, file_name='textcreation/texts/aligned/redchamber3.json')

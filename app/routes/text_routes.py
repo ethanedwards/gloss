@@ -67,7 +67,7 @@ TEXT_CONFIG = {
         'sentence_store': 'texts/rood/sentence_stores/rood_{}.json'
     },
     'redchamber': {
-        'pages': 1,
+        'pages': 18,
         'template_base': 'texts/redchamber/redchamber_{}.html',
         'sentence_store': 'texts/redchamber/sentence_stores/redchamber_{}.json'
     },

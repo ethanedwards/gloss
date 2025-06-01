@@ -13,7 +13,7 @@ from languages.oldenglish import OldEnglish
 from languages.chinese import Chinese
 from languages.persian import Persian
 # Define additional punctuation marks
-ADDITIONAL_PUNCTUATION = '«»„"‹›''""-–—？，！。：；「」《》'
+ADDITIONAL_PUNCTUATION = '«»„"‹›''""-–—？，！。：；「」《》、：「」'
 # Combine with standard punctuation
 EXTENDED_PUNCTUATION = string.punctuation + ADDITIONAL_PUNCTUATION
 
@@ -60,7 +60,7 @@ def getJSON(file):
         
     return data
 
-def processInterlinear(datalist, language=''):
+def processInterlinear(datalist, language='', pagebreak=10):
     runninghtmls = []
     sentence_stores = []
     counter = 0
@@ -85,9 +85,8 @@ def processInterlinear(datalist, language=''):
             runninghtml += """
                 </div> 
                 <div class="word-group">"""
-        if counter == 10:
-            print(entry)
-            counter+=1
+        if counter == pagebreak:
+            counter=0
             runninghtmls.append(runninghtml)
             sentence_stores.append(sentence_store)
             runninghtml = ""
@@ -200,7 +199,7 @@ def processSourceTextFirst(entry, stracker, language=''):
     # (\s+) captures at least one whitespace character, including newlines
 
     # Wow so hacky
-    text = text.replace("’", "653")
+    text = text.replace("'", "653")
     text = text.replace("'", "653")
     
     pattern = r'(\w+\b[^\s\w]*)|(\s+)'
@@ -394,8 +393,9 @@ def processSourceInterlinearFirst(entry, stracker, language):
                         # </div> 
                         # <div class="word-group">"""
                     else:
-                        if element in EXTENDED_PUNCTUATION or element.strip() in EXTENDED_PUNCTUATION:
+                        if element in EXTENDED_PUNCTUATION or element.strip() in EXTENDED_PUNCTUATION or all(char in EXTENDED_PUNCTUATION for char in element.strip()):
                             print(f"Adding unmatched punctuation: {element}")
+                            continue
                             
                             # Check if this is the first item in runninghtml (no word divs yet)
                             if '<div class="word"' not in runninghtml:
@@ -439,8 +439,9 @@ def processSourceInterlinearFirst(entry, stracker, language):
             except:
                 print(f"Couldn't get match for gloss {gloss_word}")
 
-        
-        word_id = generate_word_id(gloss_word)
+        gloss_word_cleaned = ''.join(c for c in gloss_word if not (c.isspace() or re.match(r'[^\w\s]', c)))
+        print(f"gloss_word_cleaned is {gloss_word_cleaned}")
+        word_id = generate_word_id(gloss_word_cleaned)
         sentence_data = {
             'source': text,
             'translation': translation
@@ -464,7 +465,7 @@ def processSourceInterlinearFirst(entry, stracker, language):
 
 
         sentence_id = stracker.sentence_id
-        word_id = generate_word_id(gloss_word)
+        word_id = generate_word_id(gloss_word_cleaned)
         sentence_data = {
             'source': text,
             'translation': translation
@@ -786,9 +787,9 @@ def text_to_html(text):
     return html_text
 
 
-def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, description, language, starting_page=1):
+def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, description, language, starting_page=1, pagebreak=10):
     # normal languages
-    interlineartexts, sentence_stores = processInterlinear(getJSON(jsonfile), language)
+    interlineartexts, sentence_stores = processInterlinear(getJSON(jsonfile), language, pagebreak)
 
     html_template = open(htmltemplate, 'r').read()
     # enumerate starts at 1
@@ -814,4 +815,4 @@ def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, descrip
         print("Wrote page " + str(i))
         # Write one file for each page, first sentence of each page has /n/n/n/n/n
 
-write_html_interlinear("textcreation/texts/interlinearouts/interlinearredchamber.json", "textcreation/texts/templates/infernotemplate.html", "app/templates/texts/", "redchamber", "redchamber", "redchamber", Chinese(), starting_page=1)
+write_html_interlinear("textcreation/texts/interlinearouts/interlinearredchamber3.json", "textcreation/texts/templates/infernotemplate.html", "app/templates/texts/", "redchamber", "redchamber", "redchamber", Chinese(), starting_page=3, pagebreak=1)
