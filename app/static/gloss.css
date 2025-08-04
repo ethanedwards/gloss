@@ -20,6 +20,8 @@ body {
 .interlinear-container .word {
     padding: 10px;
     font-size: 1.2em; /* Adjust the size as needed */
+    display: flex;
+    flex-direction: column;
 }
 
 /* Decrease the font size of gloss */
@@ -27,6 +29,7 @@ body {
     display: block;
     font-size: 0.8em; /* Adjust the size as needed */
     user-select: none;
+    order: 2; /* Show after reading */
 }
 
 /* Shrink the font size and change alignment of grammar */
@@ -35,16 +38,60 @@ body {
     font-size: 0.6em; /* Adjust the size as needed */
     text-align: right; /* Aligns text to the right */
     user-select: none;
+    order: 5; /* Show after other elements */
 }
 
-/* Hide pos and dictionary completely */
+/* Set order for other common elements */
+.interlinear-container .word .alt,
+.interlinear-container .word .lit {
+    order: 6; /* Show after everything else */
+}
+
+/* Hide pos and dictionary completely by default */
 .interlinear-container .word .pos,
 .interlinear-container .word .dictionary,
+.interlinear-container .word .reading,
 .interlinear-container .word .sourcesentence,
 .interlinear-container .word .translation {
     display: none;
     user-select: none;
 }
+
+/* Configurable display classes - enabled per text via JavaScript */
+.interlinear-container .word .pos.config-show {
+    display: block;
+    font-size: 0.7em;
+    color: #666;
+    font-style: italic;
+    user-select: none;
+    order: 3; /* Show after gloss */
+}
+
+.interlinear-container .word .dictionary.config-show {
+    display: block;
+    font-size: 0.7em;
+    color: #888;
+    font-weight: bold;
+    user-select: none;
+    order: 4; /* Show after pos */
+}
+
+.interlinear-container .word .reading.config-show {
+    display: block;
+    font-size: 0.7em;
+    color: #555;
+    user-select: none;
+    order: 1; /* Show between word and gloss */
+}
+
+/* Hidden states for configurable elements */
+.interlinear-container .word .pos.hidden-element,
+.interlinear-container .word .dictionary.hidden-element,
+.interlinear-container .word .reading.hidden-element {
+    color: transparent;
+}
+
+
                
 
 .chat-message {

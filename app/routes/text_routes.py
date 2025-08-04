@@ -67,7 +67,7 @@ TEXT_CONFIG = {
         'sentence_store': 'texts/rood/sentence_stores/rood_{}.json'
     },
     'redchamber': {
-        'pages': 18,
+        'pages': 25,
         'template_base': 'texts/redchamber/redchamber_{}.html',
         'sentence_store': 'texts/redchamber/sentence_stores/redchamber_{}.json'
     },
@@ -75,6 +75,21 @@ TEXT_CONFIG = {
         'pages': 1,
         'template_base': 'texts/afsharitasnif/afsharitasnif_{}.html',
         'sentence_store': 'texts/afsharitasnif/sentence_stores/afsharitasnif_{}.json'
+    },
+    'ninesols': {
+        'pages': 1,
+        'template_base': 'texts/ninesols/ninesols_{}.html',
+        'sentence_store': 'texts/ninesols/sentence_stores/ninesols_{}.json'
+    },
+    'labyrinth': {
+        'pages': 10,
+        'template_base': 'texts/labyrinth/labyrinth_{}.html',
+        'sentence_store': 'texts/labyrinth/sentence_stores/labyrinth_{}.json'
+    },
+    'grandesertao': {
+        'pages': 1,
+        'template_base': 'texts/grandesertao/grandesertao_{}.html',
+        'sentence_store': 'texts/grandesertao/sentence_stores/grandesertao_{}.json'
     }
     # Add other texts...
 }

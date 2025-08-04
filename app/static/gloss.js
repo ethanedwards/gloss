@@ -145,6 +145,48 @@ fetch('/get_click_counts', {
 
 let gloss = true;
 
+// Configuration system for per-text element display
+let textConfig = {
+    showPos: false,
+    showDictionary: false,
+    showReading: false,
+    posFormat: 'code' // 'code' or 'label'
+};
+
+// Initialize configuration based on meta tags
+function initializeTextConfig() {
+    // Check for display configuration meta tags
+    const showPos = document.querySelector('meta[name="show_pos"]');
+    const showDictionary = document.querySelector('meta[name="show_dictionary"]');
+    const showReading = document.querySelector('meta[name="show_reading"]');
+    const posFormat = document.querySelector('meta[name="pos_format"]');
+    
+    textConfig.showPos = showPos ? showPos.content === 'true' : false;
+    textConfig.showDictionary = showDictionary ? showDictionary.content === 'true' : false;
+    textConfig.showReading = showReading ? showReading.content === 'true' : false;
+    textConfig.posFormat = posFormat ? posFormat.content : 'code';
+}
+
+// Function to format POS codes based on configuration
+function formatPOSCode(code) {
+    if (textConfig.posFormat === 'label') {
+        const posMap = {
+            '1': 'NOUN',
+            '2': 'PREP', 
+            '5': 'CONJ',
+            '6': 'PRON',
+            '8': 'NOUN',
+            '10': 'ADV',
+            '12': 'PRON',
+            '17': 'VERB'
+            // Add more mappings as needed
+        };
+        const trimmedCode = code.trim();
+        return posMap[trimmedCode] || `POS: ${trimmedCode}`;
+    }
+    return code.trim() ? `POS: ${code.trim()}` : '';
+}
+
 function lookup(entry){
     // Track click count
     const dictionary = entry.querySelector('.dictionary').textContent.trim();
@@ -178,6 +220,9 @@ document.addEventListener('keydown', function(event) {
 
 // Replace the existing word-specific event listeners with this:
 document.addEventListener('DOMContentLoaded', (event) => {
+    // Initialize text configuration from meta tags
+    initializeTextConfig();
+    
     // Add a single event listener to the interlinear container
     const container = document.querySelector('.interlinear-container');
     
@@ -185,10 +230,47 @@ document.addEventListener('DOMContentLoaded', (event) => {
     container.addEventListener('click', handleWordInteraction);
     container.addEventListener('touchstart', handleWordInteraction);
     
-    // Add IDs to all words
+    // Add IDs to all words and apply configuration
     const words = document.querySelectorAll('.word');
     words.forEach((word, index) => {
         word.setAttribute('data-word-id', `word-${index}`);
+        
+        // Apply configuration to show/hide elements
+        if (textConfig.showPos) {
+            const pos = word.querySelector('.pos');
+            if (pos) {
+                pos.classList.add('config-show');
+                // Format POS code if needed
+                const originalCode = pos.textContent;
+                pos.textContent = formatPOSCode(originalCode);
+                // Set initial visibility based on gloss state
+                if (!gloss) {
+                    pos.classList.add('hidden-element');
+                }
+            }
+        }
+        
+        if (textConfig.showDictionary) {
+            const dictionary = word.querySelector('.dictionary');
+            if (dictionary) {
+                dictionary.classList.add('config-show');
+                // Set initial visibility based on gloss state
+                if (!gloss) {
+                    dictionary.classList.add('hidden-element');
+                }
+            }
+        }
+        
+        if (textConfig.showReading) {
+            const reading = word.querySelector('.reading');
+            if (reading) {
+                reading.classList.add('config-show');
+                // Set initial visibility based on gloss state
+                if (!gloss) {
+                    reading.classList.add('hidden-element');
+                }
+            }
+        }
     });
 });
 
@@ -196,6 +278,7 @@ function handleWordInteraction(event) {
     const wordElement = event.target.closest('.word');
     if (!wordElement) return; // Exit if click/touch wasn't on a word
     
+    // Always handle gloss
     const gloss = wordElement.querySelector('.gloss');
     if (gloss) {
         gloss.classList.toggle('permanent-gloss');
@@ -203,6 +286,38 @@ function handleWordInteraction(event) {
             gloss.classList.remove('hidden-gloss');
         }
     }
+    
+    // Handle configurable elements based on text settings
+    if (textConfig.showPos) {
+        const pos = wordElement.querySelector('.pos');
+        if (pos) {
+            pos.classList.toggle('permanent-element');
+            if (pos.classList.contains('hidden-element')) {
+                pos.classList.remove('hidden-element');
+            }
+        }
+    }
+    
+    if (textConfig.showDictionary) {
+        const dictionary = wordElement.querySelector('.dictionary');
+        if (dictionary) {
+            dictionary.classList.toggle('permanent-element');
+            if (dictionary.classList.contains('hidden-element')) {
+                dictionary.classList.remove('hidden-element');
+            }
+        }
+    }
+    
+    if (textConfig.showReading) {
+        const reading = wordElement.querySelector('.reading');
+        if (reading) {
+            reading.classList.toggle('permanent-element');
+            if (reading.classList.contains('hidden-element')) {
+                reading.classList.remove('hidden-element');
+            }
+        }
+    }
+    
     lookup(wordElement);
 }
 
@@ -429,6 +544,8 @@ function getPrompt(elements){
 function toggleGloss() {
     const glossElements = document.querySelectorAll('.gloss');
     gloss = !gloss;
+    
+    // Always toggle gloss elements
     glossElements.forEach(function(glossElement) {
         if (gloss) {
             if (!glossElement.classList.contains('permanent-gloss')) {
@@ -438,7 +555,54 @@ function toggleGloss() {
             if (!glossElement.classList.contains('permanent-gloss')) {
                 glossElement.classList.add('hidden-gloss');
             }
-        }        });
+        }
+    });
+    
+    // Toggle configurable elements based on text settings
+    if (textConfig.showPos) {
+        const posElements = document.querySelectorAll('.pos.config-show');
+        posElements.forEach(function(posElement) {
+            if (gloss) {
+                if (!posElement.classList.contains('permanent-element')) {
+                    posElement.classList.remove('hidden-element');
+                }
+            } else {
+                if (!posElement.classList.contains('permanent-element')) {
+                    posElement.classList.add('hidden-element');
+                }
+            }
+        });
+    }
+    
+    if (textConfig.showDictionary) {
+        const dictionaryElements = document.querySelectorAll('.dictionary.config-show');
+        dictionaryElements.forEach(function(dictionaryElement) {
+            if (gloss) {
+                if (!dictionaryElement.classList.contains('permanent-element')) {
+                    dictionaryElement.classList.remove('hidden-element');
+                }
+            } else {
+                if (!dictionaryElement.classList.contains('permanent-element')) {
+                    dictionaryElement.classList.add('hidden-element');
+                }
+            }
+        });
+    }
+    
+    if (textConfig.showReading) {
+        const readingElements = document.querySelectorAll('.reading.config-show');
+        readingElements.forEach(function(readingElement) {
+            if (gloss) {
+                if (!readingElement.classList.contains('permanent-element')) {
+                    readingElement.classList.remove('hidden-element');
+                }
+            } else {
+                if (!readingElement.classList.contains('permanent-element')) {
+                    readingElement.classList.add('hidden-element');
+                }
+            }
+        });
+    }
 }
 
 document.getElementById('toggleGlossButton').addEventListener('click', function() {
@@ -530,12 +694,56 @@ document.addEventListener('DOMContentLoaded', (event) => {
             if (gloss && gloss.classList.contains('hidden-gloss')) {
                 gloss.classList.remove('hidden-gloss');
             }
+            
+            // Handle configurable elements
+            if (textConfig.showPos) {
+                const pos = this.querySelector('.pos.config-show');
+                if (pos && pos.classList.contains('hidden-element')) {
+                    pos.classList.remove('hidden-element');
+                }
+            }
+            
+            if (textConfig.showDictionary) {
+                const dictionary = this.querySelector('.dictionary.config-show');
+                if (dictionary && dictionary.classList.contains('hidden-element')) {
+                    dictionary.classList.remove('hidden-element');
+                }
+            }
+            
+            if (textConfig.showReading) {
+                const reading = this.querySelector('.reading.config-show');
+                if (reading && reading.classList.contains('hidden-element')) {
+                    reading.classList.remove('hidden-element');
+                }
+            }
         });
 
         word.addEventListener('touchstart', function() {
             const gloss = this.querySelector('.gloss');
             if (gloss && gloss.classList.contains('hidden-gloss')) {
                 gloss.classList.remove('hidden-gloss');
+            }
+            
+            // Handle configurable elements
+            if (textConfig.showPos) {
+                const pos = this.querySelector('.pos.config-show');
+                if (pos && pos.classList.contains('hidden-element')) {
+                    pos.classList.remove('hidden-element');
+                }
+            }
+            
+            if (textConfig.showDictionary) {
+                const dictionary = this.querySelector('.dictionary.config-show');
+                if (dictionary && dictionary.classList.contains('hidden-element')) {
+                    dictionary.classList.remove('hidden-element');
+                }
+            }
+            
+            if (textConfig.showReading) {
+                const reading = this.querySelector('.reading.config-show');
+                if (reading && reading.classList.contains('hidden-element')) {
+                    reading.classList.remove('hidden-element');
+                }
             }
         });
 

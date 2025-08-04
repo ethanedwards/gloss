@@ -12,6 +12,13 @@ from languages.latin import Latin
 from languages.oldenglish import OldEnglish
 from languages.chinese import Chinese
 from languages.persian import Persian
+from languages.spanish import Spanish
+from languages.portuguese import Portuguese
+from languages.danish import Danish
+from languages.french import French
+from languages.italian import Italian
+from languages.hindi import Hindi
+from morphology_simplifier import simplify_morphological_tag
 # Define additional punctuation marks
 ADDITIONAL_PUNCTUATION = '«»„"‹›''""-–—？，！。：；「」《》、：「」'
 # Combine with standard punctuation
@@ -68,8 +75,11 @@ def processInterlinear(datalist, language='', pagebreak=10):
     runninghtml = ""
     stracker = sentenceTracker()
     sentence_store = sentenceStore()
+
+    current_sentence = datalist[0]['source']
     #Loop through each entry
     for entry in datalist:
+        print(f"entry is {entry['source']}")
         # normal languages
         #add, store = processSource(entry, stracker, language)
         # japanese
@@ -85,6 +95,12 @@ def processInterlinear(datalist, language='', pagebreak=10):
             runninghtml += """
                 </div> 
                 <div class="word-group">"""
+        if current_sentence != entry['source']:
+            if current_sentence.endswith("\n") or entry['source'].startswith("\n"):
+                runninghtml += """
+                    </div> 
+                    <div class="word-group">"""
+            current_sentence = entry['source']
         if counter == pagebreak:
             counter=0
             runninghtmls.append(runninghtml)
@@ -199,7 +215,7 @@ def processSourceTextFirst(entry, stracker, language=''):
     # (\s+) captures at least one whitespace character, including newlines
 
     # Wow so hacky
-    text = text.replace("'", "653")
+    text = text.replace("’", "653")
     text = text.replace("'", "653")
     
     pattern = r'(\w+\b[^\s\w]*)|(\s+)'
@@ -328,18 +344,23 @@ def processSourceTextFirst(entry, stracker, language=''):
 
 
 def processSourceInterlinearFirst(entry, stracker, language):
-    runninghtml = """
-                </div> 
-                <div class="word-group">"""
+    
     text = entry['source']
     translation = entry['translation']
     interlinear = entry['interlinear']
+    speaker = entry['speaker'] if 'speaker' in entry else None
     parsinginfo = entry['parseinfo']
     if stracker.current_sentence != text:
         stracker.current_sentence = text
         stracker.increase()
 
 
+    # runninghtml = f"""
+    #             </div> 
+    #             <div class="speaker">{speaker}</div>
+    #             <div class="word-group">"""
+
+    runninghtml = ""
 
     sentence_store = sentenceStore()
 
@@ -459,9 +480,9 @@ def processSourceInterlinearFirst(entry, stracker, language):
             if len(lookupword) > 1:
                 dictionaryforms += " " + lookupword[1]
             if len(lookupword) > 2:
-                pos += " " + lookupword[2]
+                pos += " " + str(lookupword[2])
             if len(lookupword) > 3:
-                reading += " " + lookupword[3]
+                reading += " " + str(lookupword[3])
 
 
         sentence_id = stracker.sentence_id
@@ -527,7 +548,7 @@ def getHTML(word, gloss, word_id, sentence_id, language):
         if len(lookupword) > 1:
             dictionaryforms += " " + lookupword[1]
         if len(lookupword) > 2:
-            pos += " " + lookupword[2]
+            pos += " " + str(lookupword[2])
 
     # Generate ruby markup using kakashi
     if language.name == "japanese":
@@ -546,6 +567,14 @@ def getHTML(word, gloss, word_id, sentence_id, language):
         reading = language.get_readings(word)
     else:
         reading = ""
+    
+    if language.name == "latin":
+        simplified_grammar = simplify_morphological_tag(grammar) if grammar else ""
+        grammar = simplified_grammar
+        reading = grammar
+    
+    # Simplify the morphological tags for display
+    
     
     addhtml = f"""
     <div class="word" title="{grammar}" data-word-id="{word_id}" data-sentence-id="{sentence_id}">
@@ -815,4 +844,4 @@ def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, descrip
         print("Wrote page " + str(i))
         # Write one file for each page, first sentence of each page has /n/n/n/n/n
 
-write_html_interlinear("textcreation/texts/interlinearouts/interlinearredchamber3.json", "textcreation/texts/templates/infernotemplate.html", "app/templates/texts/", "redchamber", "redchamber", "redchamber", Chinese(), starting_page=3, pagebreak=1)
+write_html_interlinear("textcreation/texts/interlinearouts/interlinearlabyrinth4_conservative_matched.json", "textcreation/texts/templates/infernotemplate.html", "app/templates/texts/", "labyrinth", "labyrinth", "labyrinth", Spanish(), starting_page=4, pagebreak=1)
