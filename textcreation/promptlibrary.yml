@@ -283,7 +283,7 @@
     Excerpt to translate:
     {excerpt}
 
-- title: InterlinearSystemChinese
+- title: InterlinearSystemNinesols
   description: Interlinear prompt for Chinese to English using Kafka example.
   content: |
     You are an expert system in Chinese language, grammar and literature. You produce interlinear translations which enable an english reader to appreciate the Chinese original, so for each word or phrase you should output a gloss, using this formatting.
@@ -295,7 +295,7 @@
     | Er*He | lag*lay | auf*on | seinem*his | panzerartig harten*armor-hard | Rücken*back | und*and | sah,*saw | wenn*if | er*he | den Kopf*(his) | head ein*a | wenig*little | hob,*raised, | seinen*his | gewölbten,*curved, | braunen,*brown, | von begoenförmigen*to arc-formed | Versteifungen*stiffenings | geteilten*divided | Bauch,*abdomen; | auf*at | dessen*this | Höhe*height | sich*itself | die*the | Bettdecke,*bed cover | zum*for | gaenzlichen*a complete | Niedergleiten*sliding down | bereit,*ready | kaum*in place noch*hardly | erhalten*to keep |konnte.*could. |
     ##
 
-- title: InterlinearUserChinese
+- title: InterlinearUserNinesols
   description: Another prompt example with variables.
   variables: 
     - name: english

@@ -4,24 +4,26 @@ from llm.claude import claude
 from tqdm import tqdm
 import asyncio
 import signal
-import sys
 import os
 from languages.language import Language
-from languages.german import German
-from languages.latin import Latin
-from languages.oldenglish import OldEnglish
-from languages.french import French
-from languages.italian import Italian
-from languages.spanish import Spanish
-from languages.hindi import Hindi
-from languages.danish import Danish
-from languages.persian import Persian
-from languages.chinese import Chinese
-from languages.japanese import Japanese
-from languages.portuguese import Portuguese
+"""Lightweight language implementations to avoid heavy model deps during batch runs."""
+class ChineseLight(Language):
+    def __init__(self):
+        self.name = "chinese"
+
+    def get_grammar(self, word: str, sent: str, ind: int):
+        return ""
+
+    def get_definition(self, word: str):
+        return ""
+
+    def parse_sent(self, sent: str):
+        # Skip heavy parsing to avoid spaCy transformer dependency
+        return []
 
 # Global variable to track interruption
 interrupted = False
+REQUEST_TIMEOUT_SECONDS = int(os.getenv("GLOSS_API_TIMEOUT", "600"))
 
 def signal_handler(signum, frame):
     global interrupted
@@ -84,7 +86,7 @@ def zipsources(jsonfile, stopsource: str = None, speakermode: bool = False):
 
 
 
-async def getTranslations(source_list, translation_list, llm, userprompt, systemprompt, language: Language = French(), speaker_list=[], output_file=None, batch_size=10, resume_from=0):
+async def getTranslations(source_list, translation_list, llm, userprompt, systemprompt, language: Language, speaker_list=[], output_file=None, batch_size=10, resume_from=0):
     """
     Process translations in batches with progressive writing and interruption handling.
     
@@ -138,41 +140,53 @@ async def getTranslations(source_list, translation_list, llm, userprompt, system
             translation = translation_list[i]
             
             if source.strip() and translation.strip():
-                prompt = userprompt.format(portuguese=source.strip(), english=translation.strip())
+                prompt = userprompt.format(chinese=source.strip(), english=translation.strip())
                 messages = llm.format_messages(userprompt=prompt, systemprompt=systemprompt)
-                async_request = llm.get_completion_async(messages=messages)
+                async_request = llm.get_completion_async(messages=messages, timeout_seconds=REQUEST_TIMEOUT_SECONDS)
                 async_requests.append(async_request)
                 valid_entries.append(i)
         
         # Process this batch
         if async_requests:
             try:
-                # Use asyncio.gather to preserve order of results
                 print(f"Waiting for {len(async_requests)} async requests to complete...")
-                results = await asyncio.gather(*async_requests, return_exceptions=True)
-                
-                # Handle any exceptions in results
-                processed_results = []
-                for i, result in enumerate(results):
+                # Create tasks so we can cancel if interrupted
+                tasks = [asyncio.create_task(coro) for coro in async_requests]
+                task_to_index = {task: idx for task, idx in zip(tasks, valid_entries)}
+                pending = set(tasks)
+                # Pre-fill results with None to preserve order
+                results_map = {idx: None for idx in valid_entries}
+
+                while pending:
                     if interrupted:
+                        # Cancel any remaining tasks immediately
+                        for t in pending:
+                            t.cancel()
+                        # Drain cancellations
+                        await asyncio.gather(*pending, return_exceptions=True)
                         break
-                    if isinstance(result, Exception):
-                        print(f"Error in request {i}: {result}")
-                        processed_results.append("")  # Empty result for failed requests
-                    else:
-                        processed_results.append(result)
-                
-                results = processed_results
-                
-                # Build output for this batch
-                for (idx, result) in zip(valid_entries, results):
-                    if interrupted:
-                        break
+
+                    done, pending = await asyncio.wait(pending, timeout=1, return_when=asyncio.FIRST_COMPLETED)
+                    for t in done:
+                        idx = task_to_index[t]
+                        try:
+                            res = t.result()
+                        except Exception as e:
+                            print(f"Error in request for index {idx}: {type(e).__name__}: {e!r}")
+                            res = ""
+                        results_map[idx] = res
+
+                # Build output for this batch in the original order
+                for idx in valid_entries:
+                    if interrupted and results_map[idx] is None:
+                        # Skip unfinished entries on interrupt
+                        continue
+                    result = results_map[idx] if results_map[idx] is not None else ""
                     source = source_list[idx]
                     translation = translation_list[idx]
                     speaker = speaker_list[idx] if idx < len(speaker_list) and speaker_list[idx] is not None else None
                     
-                    interlist = parseInterlinear(result)
+                    interlist = parseInterlinear(result) if result else []
                     parseinfo = language.parse_sent(source)
                     outputlist[idx] = {
                         "source": source, 
@@ -180,11 +194,17 @@ async def getTranslations(source_list, translation_list, llm, userprompt, system
                         "interlinear": interlist, 
                         "parseinfo": parseinfo, 
                         "rawoutput": result, 
-                        "speaker": speaker
+                        "speaker": speaker,
                     }
-                    
+
+            except asyncio.CancelledError:
+                # Propagate cancellation
+                raise
+            except KeyboardInterrupt:
+                # Propagate KeyboardInterrupt if it occurs
+                raise
             except Exception as e:
-                print(f"Error processing batch {batch_number}: {e}")
+                print(f"Error processing batch {batch_number}: {type(e).__name__}: {e!r}")
                 continue
         
         # Fill in empty entries for this batch
@@ -225,9 +245,9 @@ async def getTranslations(source_list, translation_list, llm, userprompt, system
         
         resume_idx = last_completed_idx + 1 if last_completed_idx >= 0 else 0
         
-        print(f"\n{'='*50}")
-        print(f"INTERRUPTION DETECTED")
-        print(f"{'='*50}")
+        print("\n" + "="*50)
+        print("INTERRUPTION DETECTED")
+        print("="*50)
         print(f"Progress: {completed_count}/{total_entries} entries completed")
         print(f"Last completed index: {last_completed_idx}")
         print(f"Temporary file saved as: {temp_file}")
@@ -244,14 +264,14 @@ async def getTranslations(source_list, translation_list, llm, userprompt, system
     
     return outputlist
 
-async def getParses(source_list, translation_list, llm, userprompt, systemprompt, language: Language = Japanese()):
+async def getParses(source_list, translation_list, llm, userprompt, systemprompt, language: Language):
     outputlist = []
     for source, translation in tqdm(zip(source_list, translation_list), total=len(source_list), desc="Parsing results"):
         parseinfo = language.parse_sent(source)
         outputlist.append({"source": source, "translation": translation, "parseinfo": parseinfo})
     return outputlist
 
-async def getTranslationAndInterlinear(source, llm, userprompt, systemprompt, language: Language = Persian()):
+async def getTranslationAndInterlinear(source, llm, userprompt, systemprompt, language: Language):
     prompt = userprompt.format(persian=source.strip())
     messages = llm.format_messages(userprompt=prompt, systemprompt=systemprompt)
     async_request = llm.get_completion_async(messages=messages)
@@ -260,7 +280,7 @@ async def getTranslationAndInterlinear(source, llm, userprompt, systemprompt, la
     parseinfo = language.parse_sent(source)
     return {"source": source, "translation": translation, "interlinear": interlist, "parseinfo": parseinfo, "rawoutput": result}
 
-async def getTranslationAndInterlinearExcerpts(sourcelist, source, llm, userprompt, systemprompt, language: Language = Persian()):
+async def getTranslationAndInterlinearExcerpts(sourcelist, source, llm, userprompt, systemprompt, language: Language):
     outputlist = []
     for excerpt in sourcelist:
         source.strip()
@@ -315,71 +335,66 @@ def find_resume_point(output_file):
         print(f"Error reading {output_file}: {e}")
         return 0
 
-def parseHindi():
-    llmouts = open("textcreation/texts/interlinearouts/neeleneele.txt", 'r').read()
-    llmouts = llmouts.split("##")
-    sources = open("textcreation/texts/interlinearouts/neeleneeleog.txt", 'r').read()
-    sources = sources.split("##")
-    translations = open("textcreation/texts/interlinearouts/neeleneeleeng.txt", 'r').read()
-    translations = translations.split("##")
-    outputlist = []
-    for source, translation, llmout in zip(sources, translations, llmouts):
-        combo = getTranslationsResults(llmout, source, translation, Hindi())
-        outputlist.append(combo)
-    return outputlist
+# Note: parseHindi() removed to avoid importing heavy dependencies in environments
+# where they are not available. Re-add if needed with appropriate optional imports.
 
 if __name__ == '__main__':
     #load yml file for prompts
     lib = promptlibrary("textcreation/promptlibrary.yml")
-    userprompt = lib.find_prompt_by_title("InterlinearUserGrandeSertao")
-    systemprompt = lib.find_prompt_by_title("InterlinearSystemGrandeSertao")
+    userprompt = lib.find_prompt_by_title("InterlinearUserNinesols")
+    systemprompt = lib.find_prompt_by_title("InterlinearSystemNinesols")
 
     llm = claude()
-    
-    source_list, translation_list, speaker_list = zipsources("textcreation/texts/aligned/rosa1.json", speakermode=False)
-    #source_list = [open("textcreation/texts/sources/sinocismtestch.txt", 'r').read()]
-    #translation_list = [open("textcreation/texts/sources/sinocismtesten.txt", 'r').read()]
 
-    #source = open("textcreation/texts/sources/afsharitasnif.txt", 'r').read()
-    # split every 2 lines
-    #source_list = ["\n".join(source.split("\n")[i:i+2]) for i in range(0, len(source.split("\n")), 2)]
-    #sources = source.split("\n\n")
-    #print("Getting translations")
+
+    for filenum in range(12, 20):
+
+        filenumstr = f"0{filenum}" if filenum < 10 else str(filenum)
     
-    # Configuration for batch processing
-    output_file = "textcreation/texts/interlinearouts/interlinearrosa1.json"
-    batch_size = 5  # Process 5 items at a time (adjust as needed)
-    
-    # Automatically detect resume point from existing file
-    resume_from = find_resume_point(output_file)
-    
-    print(f"Starting translation processing:")
-    print(f"- Total entries: {len(source_list)}")
-    print(f"- Batch size: {batch_size}")
-    print(f"- Output file: {output_file}")
-    print(f"- Resume from index: {resume_from}")
-    print(f"- Language: Spanish")
-    print("\nPress Ctrl+C to interrupt gracefully and save progress\n")
-    
-    translations = asyncio.run(getTranslations(
-        source_list, 
-        translation_list, 
-        llm, 
-        userprompt, 
-        systemprompt, 
-        language=Portuguese(), 
-        speaker_list=speaker_list,
-        output_file=output_file,
-        batch_size=batch_size,
-        resume_from=resume_from
-    ))
-    
-    # Final message
-    if not interrupted:
-        print(f"\n✅ Processing completed successfully!")
-        print(f"📁 Results saved to: {output_file}")
-    else:
-        print(f"\n⚠️  Processing was interrupted but progress has been saved.")
+        source_list, translation_list, speaker_list = zipsources(f"textcreation/texts/aligned/ninesols{filenumstr}.json", speakermode=True)
+        #source_list = [open("textcreation/texts/sources/sinocismtestch.txt", 'r').read()]
+        #translation_list = [open("textcreation/texts/sources/sinocismtesten.txt", 'r').read()]
+
+        #source = open("textcreation/texts/sources/afsharitasnif.txt", 'r').read()
+        # split every 2 lines
+        #source_list = ["\n".join(source.split("\n")[i:i+2]) for i in range(0, len(source.split("\n")), 2)]
+        #sources = source.split("\n\n")
+        #print("Getting translations")
+        
+        # Configuration for batch processing
+        output_file = f"textcreation/texts/interlinearouts/interlinearninesols{filenumstr}.json"
+        batch_size = 5  # Process 5 items at a time (adjust as needed)
+        
+        # Automatically detect resume point from existing file
+        resume_from = find_resume_point(output_file)
+        
+        print("Starting translation processing:")
+        print(f"- Total entries: {len(source_list)}")
+        print(f"- Batch size: {batch_size}")
+        print(f"- Output file: {output_file}")
+        print(f"- Resume from index: {resume_from}")
+        print("- Language: Chinese")
+        print("\nPress Ctrl+C to interrupt gracefully and save progress\n")
+        
+        translations = asyncio.run(getTranslations(
+            source_list, 
+            translation_list, 
+            llm, 
+            userprompt, 
+            systemprompt, 
+            language=ChineseLight(), 
+            speaker_list=speaker_list,
+            output_file=output_file,
+            batch_size=batch_size,
+            resume_from=resume_from
+        ))
+        
+        # Final message
+        if not interrupted:
+            print("\n✅ Processing completed successfully!")
+            print("📁 Results saved to: " + str(output_file))
+        else:
+            print("\n⚠️  Processing was interrupted but progress has been saved.")
     
     #parses = asyncio.run(getParses(source_list, translation_list, llm, userprompt, systemprompt, language=Japanese()))
     #persian poems

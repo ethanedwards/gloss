@@ -355,12 +355,14 @@ def processSourceInterlinearFirst(entry, stracker, language):
         stracker.increase()
 
 
-    # runninghtml = f"""
-    #             </div> 
-    #             <div class="speaker">{speaker}</div>
-    #             <div class="word-group">"""
+    if speaker:
+        runninghtml = f"""
+                    </div> 
+                    <div class="speaker">{speaker}</div>
+                    <div class="word-group">"""
 
-    runninghtml = ""
+    else:
+        runninghtml = ""
 
     sentence_store = sentenceStore()
 
@@ -843,5 +845,9 @@ def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, descrip
 
         print("Wrote page " + str(i))
         # Write one file for each page, first sentence of each page has /n/n/n/n/n
-
-write_html_interlinear("textcreation/texts/interlinearouts/interlinearlabyrinth4_conservative_matched.json", "textcreation/texts/templates/infernotemplate.html", "app/templates/texts/", "labyrinth", "labyrinth", "labyrinth", Spanish(), starting_page=4, pagebreak=1)
+for i in range(1, 12):
+    if i < 10:
+        numstr = "0" + str(i)
+    else:
+        numstr = str(i)
+    write_html_interlinear("textcreation/texts/interlinearouts/interlinearninesols" + numstr + ".json", "textcreation/texts/templates/readingtemplate.html", "app/templates/texts/", "ninesols", "ninesols", "ninesols", Chinese(), starting_page=i, pagebreak=1)

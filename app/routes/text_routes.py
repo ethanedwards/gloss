@@ -77,7 +77,7 @@ TEXT_CONFIG = {
         'sentence_store': 'texts/afsharitasnif/sentence_stores/afsharitasnif_{}.json'
     },
     'ninesols': {
-        'pages': 1,
+        'pages': 11,
         'template_base': 'texts/ninesols/ninesols_{}.html',
         'sentence_store': 'texts/ninesols/sentence_stores/ninesols_{}.json'
     },
