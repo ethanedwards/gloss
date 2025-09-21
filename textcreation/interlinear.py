@@ -339,62 +339,59 @@ def find_resume_point(output_file):
 # where they are not available. Re-add if needed with appropriate optional imports.
 
 if __name__ == '__main__':
-    #load yml file for prompts
+    # Load yml file for prompts
     lib = promptlibrary("textcreation/promptlibrary.yml")
-    userprompt = lib.find_prompt_by_title("InterlinearUserNinesols")
-    systemprompt = lib.find_prompt_by_title("InterlinearSystemNinesols")
+    userprompt = lib.find_prompt_by_title("InterlinearUserChinesePoems")
+    systemprompt = lib.find_prompt_by_title("InterlinearSystemChinesePoems")
 
     llm = claude()
 
-
-    for filenum in range(12, 20):
-
-        filenumstr = f"0{filenum}" if filenum < 10 else str(filenum)
+    # Process first 10 poems from tang_poems_tseng.json
+    with open('tang_poems_tseng.json', 'r', encoding='utf-8') as f:
+        tang_poems = json.load(f)
     
-        source_list, translation_list, speaker_list = zipsources(f"textcreation/texts/aligned/ninesols{filenumstr}.json", speakermode=True)
-        #source_list = [open("textcreation/texts/sources/sinocismtestch.txt", 'r').read()]
-        #translation_list = [open("textcreation/texts/sources/sinocismtesten.txt", 'r').read()]
-
-        #source = open("textcreation/texts/sources/afsharitasnif.txt", 'r').read()
-        # split every 2 lines
-        #source_list = ["\n".join(source.split("\n")[i:i+2]) for i in range(0, len(source.split("\n")), 2)]
-        #sources = source.split("\n\n")
-        #print("Getting translations")
-        
-        # Configuration for batch processing
-        output_file = f"textcreation/texts/interlinearouts/interlinearninesols{filenumstr}.json"
-        batch_size = 5  # Process 5 items at a time (adjust as needed)
-        
-        # Automatically detect resume point from existing file
-        resume_from = find_resume_point(output_file)
-        
-        print("Starting translation processing:")
-        print(f"- Total entries: {len(source_list)}")
-        print(f"- Batch size: {batch_size}")
-        print(f"- Output file: {output_file}")
-        print(f"- Resume from index: {resume_from}")
-        print("- Language: Chinese")
-        print("\nPress Ctrl+C to interrupt gracefully and save progress\n")
-        
-        translations = asyncio.run(getTranslations(
-            source_list, 
-            translation_list, 
-            llm, 
-            userprompt, 
-            systemprompt, 
-            language=ChineseLight(), 
-            speaker_list=speaker_list,
-            output_file=output_file,
-            batch_size=batch_size,
-            resume_from=resume_from
-        ))
-        
-        # Final message
-        if not interrupted:
-            print("\n✅ Processing completed successfully!")
-            print("📁 Results saved to: " + str(output_file))
-        else:
-            print("\n⚠️  Processing was interrupted but progress has been saved.")
+    # Extract first 10 poems
+    first_ten_poems = tang_poems[:10]
+    
+    # Prepare source and translation lists
+    source_list = [poem["source"] for poem in first_ten_poems]
+    translation_list = [poem["translation"] for poem in first_ten_poems]
+    speaker_list = []  # No speaker info in tang poems
+    
+    # Configuration for batch processing
+    output_file = "textcreation/texts/interlinearouts/interlinear_tang_poems_first_10.json"
+    batch_size = 3  # Process 3 poems at a time for better handling
+    
+    # Automatically detect resume point from existing file
+    resume_from = find_resume_point(output_file)
+    
+    print("Starting Tang poems translation processing:")
+    print(f"- Total entries: {len(source_list)}")
+    print(f"- Batch size: {batch_size}")
+    print(f"- Output file: {output_file}")
+    print(f"- Resume from index: {resume_from}")
+    print("- Language: Chinese")
+    print("\nPress Ctrl+C to interrupt gracefully and save progress\n")
+    
+    translations = asyncio.run(getTranslations(
+        source_list, 
+        translation_list, 
+        llm, 
+        userprompt, 
+        systemprompt, 
+        language=ChineseLight(), 
+        speaker_list=speaker_list,
+        output_file=output_file,
+        batch_size=batch_size,
+        resume_from=resume_from
+    ))
+    
+    # Final message
+    if not interrupted:
+        print("\n✅ Processing completed successfully!")
+        print("📁 Results saved to: " + str(output_file))
+    else:
+        print("\n⚠️  Processing was interrupted but progress has been saved.")
     
     #parses = asyncio.run(getParses(source_list, translation_list, llm, userprompt, systemprompt, language=Japanese()))
     #persian poems
