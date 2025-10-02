@@ -67,7 +67,7 @@ TEXT_CONFIG = {
         'sentence_store': 'texts/rood/sentence_stores/rood_{}.json'
     },
     'redchamber': {
-        'pages': 25,
+        'pages': 36,
         'template_base': 'texts/redchamber/redchamber_{}.html',
         'sentence_store': 'texts/redchamber/sentence_stores/redchamber_{}.json'
     },
@@ -90,6 +90,11 @@ TEXT_CONFIG = {
         'pages': 1,
         'template_base': 'texts/grandesertao/grandesertao_{}.html',
         'sentence_store': 'texts/grandesertao/sentence_stores/grandesertao_{}.json'
+    },
+    'tangpoems': {
+        'pages': 320,
+        'template_base': 'texts/tangpoems/tangpoems_{}.html',
+        'sentence_store': 'texts/tangpoems/sentence_stores/tangpoems_{}.json'
     }
     # Add other texts...
 }

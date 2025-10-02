@@ -79,11 +79,10 @@ def processInterlinear(datalist, language='', pagebreak=10):
     current_sentence = datalist[0]['source']
     #Loop through each entry
     for entry in datalist:
-        print(f"entry is {entry['source']}")
         # normal languages
         #add, store = processSource(entry, stracker, language)
         # japanese
-        add, store = processSourceInterlinearFirst(entry, stracker, language)
+        add, store = processSourceInterlinearFirstFixed(entry, stracker, language)
         # chinese
         # add, store = processSourceTextFirst(entry, stracker, language)
         #print(str(store.sentences))
@@ -91,6 +90,7 @@ def processInterlinear(datalist, language='', pagebreak=10):
         #Chapter Checker
         #if (re.search(r'\n\s*\n\s*\n\s*\n\s*([A-Z\s]+)\n\s*\n\s*\n\s*\n', entry['source']) or re.search(r'([2-9]\.\s+)', entry['source'])):
         if entry['source'] == "":
+            # Section breaks should trigger page breaks
             counter += 1
             runninghtml += """
                 </div> 
@@ -110,6 +110,8 @@ def processInterlinear(datalist, language='', pagebreak=10):
         runninghtml += add
         sentence_store.sentences.update(store.sentences)
         sentence_store.wordMap.update(store.wordMap)
+        
+        # Don't increment counter for individual sentences - only for section breaks
     runninghtmls.append(runninghtml)
     sentence_stores.append(sentence_store)
 
@@ -343,6 +345,201 @@ def processSourceTextFirst(entry, stracker, language=''):
     return runninghtml, sentence_store
 
 
+def processSourceInterlinearFirstFixed(entry, stracker, language):
+    
+    text = entry['source']
+    translation = entry['translation']
+    interlinear = entry['interlinear']
+    speaker = entry['speaker'] if 'speaker' in entry else None
+    parsinginfo = entry['parseinfo']
+    if stracker.current_sentence != text:
+        stracker.current_sentence = text
+        stracker.increase()
+
+
+    if speaker:
+        runninghtml = f"""
+                    </div> 
+                    <div class="speaker">{speaker}</div>
+                    <div class="word-group">"""
+
+    else:
+        runninghtml = ""
+
+    sentence_store = sentenceStore()
+
+    runningtext = entry['source']
+
+    # Track punctuation that should be attached to words
+    chinese_punctuation = ['。', '，', '；', '？', '！', '：', '"', '"', ''', ''', '「', '」', '《', '》', '　']
+    
+    # Store punctuation that appears before any words
+    pending_start_punctuation = ""
+
+    for gloss in interlinear:
+        if len(gloss) < 2:
+            continue
+        gloss_word = gloss[0].strip()
+        gloss_gloss = gloss[1]
+
+        sentence_id = stracker.sentence_id
+
+        # Create a mapping between normalized and original text positions
+        char_map = []
+        normalized_runningtext = ""
+        
+        for i, char in enumerate(runningtext):
+            if not (char.isspace() or re.match(r'[^\w\s]', char)):
+                normalized_runningtext += char
+                char_map.append(i)
+        
+        # Normalize the gloss word (remove punctuation and spaces for matching)
+        normalized_gloss = ''.join(c for c in gloss_word if not (c.isspace() or re.match(r'[^\w\s]', c)))
+        
+        # Find the match in normalized text
+        match_index = normalized_runningtext.find(normalized_gloss)
+        
+        if match_index != -1:
+            # Get the actual position in the original text
+            try:
+                original_start_index = char_map[match_index]
+                original_end_index = char_map[match_index + len(normalized_gloss) - 1] + 1
+                
+                # Extract the exact matching portion from the original text
+                matched_original = runningtext[original_start_index:original_end_index]
+                
+                print(f"Found match: '{matched_original}' at positions {original_start_index}:{original_end_index}")
+                
+                # Extract the text before the match
+                runningtext_before = runningtext[:original_start_index]
+                if runningtext_before != "" and runningtext_before != "\n":
+                    print(f"runningtext_before is {runningtext_before}")
+
+                # Only create line breaks for actual line endings (punctuation followed by newline)
+                if runningtext_before.strip() and (runningtext_before.endswith('，\n') or 
+                                                   runningtext_before.endswith('。\n') or 
+                                                   runningtext_before.endswith('；\n') or 
+                                                   runningtext_before.endswith('？\n') or
+                                                   runningtext_before.endswith('！\n')):
+                    runninghtml += """
+                    </div> 
+                    <div class="word-group">"""
+                
+                # Process text before the current match
+                elements = runningtext_before.split("\n")
+                for element in elements:
+                    if element == "":
+                        pass  # Don't create line breaks for every empty element
+                    else:
+                        # Skip standalone punctuation since it will be handled by the gloss processing
+                        if element.strip() in chinese_punctuation or all(char in chinese_punctuation for char in element.strip()):
+                            print(f"Skipping standalone punctuation: {element.strip()}")
+                            continue
+                        
+                        # For other content, create word elements
+                        if element.strip():
+                            word_id = generate_word_id(element)
+                            sentence_data = {
+                                'source': text,
+                                'translation': translation
+                            }
+                            runninghtml += getHTML(word=element, gloss="", word_id=word_id, sentence_id=sentence_id, language=language)
+                            sentence_store.sentences[sentence_id] = sentence_data
+                            sentence_store.wordMap[word_id] = sentence_id
+
+                runningtext = runningtext[original_end_index:]
+            except:
+                print(f"Couldn't get match for gloss {gloss_word}")
+
+        # Clean the gloss word for ID generation
+        gloss_word_cleaned = ''.join(c for c in gloss_word if not (c.isspace() or re.match(r'[^\w\s]', c)))
+        print(f"gloss_word_cleaned is {gloss_word_cleaned}")
+        word_id = generate_word_id(gloss_word_cleaned)
+        sentence_data = {
+            'source': text,
+            'translation': translation
+        }
+
+        #Get all words for the gloss
+        grammar = ""
+        dictionaryforms = ""
+        pos = ""
+        reading = ""
+        words = language.parse_sent(gloss_word)
+        for lookupword in words:
+            if len(lookupword) > 4:
+                grammar += lookupword[4]
+            if len(lookupword) > 1:
+                dictionaryforms += " " + lookupword[1]
+            if len(lookupword) > 2:
+                pos += " " + str(lookupword[2])
+            if len(lookupword) > 3:
+                reading += " " + str(lookupword[3])
+
+        sentence_id = stracker.sentence_id
+        word_id = generate_word_id(gloss_word_cleaned)
+        sentence_data = {
+            'source': text,
+            'translation': translation
+        }
+
+        # Check if gloss word contains only punctuation - if so, handle it appropriately
+        cleaned_gloss_for_punct_check = gloss_word.strip()
+        if all(char in chinese_punctuation for char in cleaned_gloss_for_punct_check) and cleaned_gloss_for_punct_check:
+            print(f"Processing gloss punctuation: {cleaned_gloss_for_punct_check}")
+            
+            # If no words have been created yet, store this punctuation to apply to the first word
+            if '<div class="word"' not in runninghtml:
+                print(f"Storing punctuation '{cleaned_gloss_for_punct_check}' for start of sentence")
+                pending_start_punctuation += cleaned_gloss_for_punct_check
+                continue
+            
+            # Find the last word div and append punctuation to its main word content
+            last_word_start = runninghtml.rfind('<div class="word"')
+            
+            if last_word_start != -1:
+                # Find the end of the opening tag
+                tag_end = runninghtml.find('>', last_word_start)
+                
+                if tag_end != -1:
+                    # Find the first nested div (which contains the gloss)
+                    first_nested_div = runninghtml.find('<div class="gloss">', tag_end)
+                    
+                    if first_nested_div != -1:
+                        # Insert the punctuation right before the first nested div
+                        runninghtml = runninghtml[:first_nested_div] + cleaned_gloss_for_punct_check + runninghtml[first_nested_div:]
+                        print(f"Successfully attached punctuation '{cleaned_gloss_for_punct_check}' to previous word")
+                    else:
+                        print(f"Could not find gloss div, adding punctuation at end")
+                        runninghtml += cleaned_gloss_for_punct_check
+                else:
+                    print(f"Could not find tag end, adding punctuation at end")
+                    runninghtml += cleaned_gloss_for_punct_check
+            else:
+                print(f"Could not find last word div, adding punctuation at end")
+                runninghtml += cleaned_gloss_for_punct_check
+            continue
+        
+        # Apply any pending start punctuation to this word
+        actual_word = gloss_word
+        if pending_start_punctuation:
+            print(f"Applying pending start punctuation '{pending_start_punctuation}' to word '{gloss_word}'")
+            # For closing quotation marks, they should go before the word (visually they close the previous speaker)
+            if pending_start_punctuation in ['」', '"']:
+                actual_word = pending_start_punctuation + gloss_word
+            else:
+                actual_word = pending_start_punctuation + gloss_word
+            pending_start_punctuation = ""  # Clear it after use
+        
+        runninghtml += getHTML(word=actual_word, gloss=gloss_gloss, word_id=word_id, sentence_id=sentence_id, language=language)
+        sentence_store.sentences[sentence_id] = sentence_data
+        sentence_store.wordMap[word_id] = sentence_id
+
+        #remove gloss_word from front of runningtext by matching text
+        runningtext = re.sub(r'^' + re.escape(gloss_word), '', runningtext)
+
+    return runninghtml, sentence_store
+
 def processSourceInterlinearFirst(entry, stracker, language):
     
     text = entry['source']
@@ -408,13 +605,19 @@ def processSourceInterlinearFirst(entry, stracker, language):
                 if runningtext_before != "" and runningtext_before != "\n":
                     print(f"runningtext_before is {runningtext_before}")
 
+                # Only create line breaks for actual line endings (punctuation followed by newline)
+                if runningtext_before.strip() and (runningtext_before.endswith('，\n') or 
+                                                   runningtext_before.endswith('。\n') or 
+                                                   runningtext_before.endswith('；\n') or 
+                                                   runningtext_before.endswith('？\n') or
+                                                   runningtext_before.endswith('！\n')):
+                    runninghtml += """
+                    </div> 
+                    <div class="word-group">"""
                 elements = runningtext_before.split("\n")
                 for element in elements:
                     if element == "":
-                        pass
-                        # runninghtml += """
-                        # </div> 
-                        # <div class="word-group">"""
+                        pass  # Don't create line breaks for every empty element
                     else:
                         if element in EXTENDED_PUNCTUATION or element.strip() in EXTENDED_PUNCTUATION or all(char in EXTENDED_PUNCTUATION for char in element.strip()):
                             print(f"Adding unmatched punctuation: {element}")
@@ -801,7 +1004,6 @@ def processSource(entry, stracker, language=''):
                 sentence_store.sentences[sentence_id] = sentence_data
                 sentence_store.wordMap[word_id] = sentence_id
         element_counter += 1
-        print(f"element_counter is {element_counter} and element_count is {element_count}")
     
     return runninghtml, sentence_store
 
@@ -818,9 +1020,15 @@ def text_to_html(text):
     return html_text
 
 
-def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, description, language, starting_page=1, pagebreak=10):
+def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, description, language, starting_page=1, pagebreak=10, total_pages=None, limit_entries=None):
     # normal languages
-    interlineartexts, sentence_stores = processInterlinear(getJSON(jsonfile), language, pagebreak)
+    data = getJSON(jsonfile)
+    if limit_entries:
+        data = data[:limit_entries]
+    interlineartexts, sentence_stores = processInterlinear(data, language, pagebreak)
+    
+    # Load original data to get translations
+    original_data = getJSON(jsonfile)
 
     html_template = open(htmltemplate, 'r').read()
     # enumerate starts at 1
@@ -828,8 +1036,23 @@ def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, descrip
         htmltext = html_template.replace("{{interlinear}}", interlineartext)
         htmltext = htmltext.replace("{{Title}}", title, -1)
         htmltext = htmltext.replace("{{Description}}", description)
+        
+        # Add full translation if template supports it
+        if "{{full_translation}}" in html_template:
+            # Get the translation for this page
+            page_index = i - starting_page
+            if page_index < len(original_data):
+                full_translation = original_data[page_index]['translation']
+                # Format the translation with proper line breaks
+                formatted_translation = full_translation.replace('\n', '<br>')
+                htmltext = htmltext.replace("{{full_translation}}", formatted_translation)
+            else:
+                htmltext = htmltext.replace("{{full_translation}}", "")
+        
         page_info = '<meta name="page_number" content="' + str(i) + '">'
-        if len(interlineartexts) >= i+1:
+        # Use total_pages if provided, otherwise fall back to length of current text
+        max_pages = total_pages if total_pages is not None else len(interlineartexts) + starting_page - 1
+        if i < max_pages:
             page_info += '<meta name="next_page" content="' + str(i+1) + '">'
         if i > 1:
             page_info += '<meta name="previous_page" content="' + str(i-1) + '">'
@@ -845,9 +1068,7 @@ def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, descrip
 
         print("Wrote page " + str(i))
         # Write one file for each page, first sentence of each page has /n/n/n/n/n
-for i in range(1, 12):
-    if i < 10:
-        numstr = "0" + str(i)
-    else:
-        numstr = str(i)
-    write_html_interlinear("textcreation/texts/interlinearouts/interlinearninesols" + numstr + ".json", "textcreation/texts/templates/readingtemplate.html", "app/templates/texts/", "ninesols", "ninesols", "ninesols", Chinese(), starting_page=i, pagebreak=1)
+
+# Load the full Tang poems data
+write_html_interlinear("texts/interlinearouts/interlinear_redchamberch3.json", "texts/templates/readingtemplate.html", "../app/templates/texts/", "redchamber", "Dream of the Red Chamber", "Dream of the Red Chamber Chapter 3", Chinese(), starting_page=25, pagebreak=1)
+

@@ -61,5 +61,6 @@ prompt_dict = {
     'redchamber': 'ChatRedChamber',
     'ninesols': 'ChatNinesols',
     'labyrinth': 'ChatLabyrinthOfSolitude',
-    'grandesertao': 'ChatGrandeSertao'
+    'grandesertao': 'ChatGrandeSertao',
+    'tangpoems': 'ChatTangPoems'
 }

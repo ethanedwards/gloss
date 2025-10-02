@@ -341,36 +341,33 @@ def find_resume_point(output_file):
 if __name__ == '__main__':
     # Load yml file for prompts
     lib = promptlibrary("textcreation/promptlibrary.yml")
-    userprompt = lib.find_prompt_by_title("InterlinearUserChinesePoems")
-    systemprompt = lib.find_prompt_by_title("InterlinearSystemChinesePoems")
+    userprompt = lib.find_prompt_by_title("InterlinearUserRedChamber")
+    systemprompt = lib.find_prompt_by_title("InterlinearSystemRedChamber")
 
     llm = claude()
 
-    # Process first 10 poems from tang_poems_tseng.json
-    with open('tang_poems_tseng.json', 'r', encoding='utf-8') as f:
-        tang_poems = json.load(f)
-    
-    # Extract first 10 poems
-    first_ten_poems = tang_poems[:10]
+    # Process redchamberch3 aligned data
+    with open('textcreation/texts/aligned/redchamberch3.json', 'r', encoding='utf-8') as f:
+        redchamber_data = json.load(f)
     
     # Prepare source and translation lists
-    source_list = [poem["source"] for poem in first_ten_poems]
-    translation_list = [poem["translation"] for poem in first_ten_poems]
-    speaker_list = []  # No speaker info in tang poems
+    source_list = [entry["source"] for entry in redchamber_data]
+    translation_list = [entry["translation"] for entry in redchamber_data]
+    speaker_list = []  # No speaker info in red chamber sections
     
     # Configuration for batch processing
-    output_file = "textcreation/texts/interlinearouts/interlinear_tang_poems_first_10.json"
-    batch_size = 3  # Process 3 poems at a time for better handling
+    output_file = "textcreation/texts/interlinearouts/interlinear_redchamberch3.json"
+    batch_size = 2  # Process 2 sections at a time for better handling (these are large sections)
     
     # Automatically detect resume point from existing file
     resume_from = find_resume_point(output_file)
     
-    print("Starting Tang poems translation processing:")
+    print("Starting Red Chamber Chapter 3 translation processing:")
     print(f"- Total entries: {len(source_list)}")
     print(f"- Batch size: {batch_size}")
     print(f"- Output file: {output_file}")
     print(f"- Resume from index: {resume_from}")
-    print("- Language: Chinese")
+    print("- Language: Chinese (Red Chamber)")
     print("\nPress Ctrl+C to interrupt gracefully and save progress\n")
     
     translations = asyncio.run(getTranslations(
@@ -388,23 +385,9 @@ if __name__ == '__main__':
     
     # Final message
     if not interrupted:
-        print("\n✅ Processing completed successfully!")
+        print("\n✅ Red Chamber Chapter 3 processing completed successfully!")
         print("📁 Results saved to: " + str(output_file))
+        print("🏛️ Ready for use in the Gloss interlinear reader!")
     else:
         print("\n⚠️  Processing was interrupted but progress has been saved.")
-    
-    #parses = asyncio.run(getParses(source_list, translation_list, llm, userprompt, systemprompt, language=Japanese()))
-    #persian poems
-    #interlinear = asyncio.run(getTranslationAndInterlinearExcerpts(sourcelist=source_list, source=source, llm=llm, userprompt=userprompt, systemprompt=systemprompt, language=Persian()))
-   # interlinear = [interlinear] + [asyncio.run(getTranslationAndInterlinear(sources[1], llm, userprompt, systemprompt, language=Persian()))]
-    
-    # File writing is now handled within the getTranslations function
-    # with open("textcreation/texts/interlinearouts/interlinearlabyrinth3a.json", 'w', encoding='utf8') as file:
-    #     json.dump(translations, file, ensure_ascii=False)
-
-
-
-    # translations = parseHindi()
-
-    # with open("textcreation/texts/interlinearouts/neeleneele.json", 'w', encoding='utf8') as file:
-    #     json.dump(translations, file, ensure_ascii=False)
+        print("📁 Partial results available at: " + str(output_file))
