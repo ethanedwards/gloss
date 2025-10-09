@@ -371,7 +371,8 @@ def processSourceInterlinearFirstFixed(entry, stracker, language):
     runningtext = entry['source']
 
     # Track punctuation that should be attached to words
-    chinese_punctuation = ['。', '，', '；', '？', '！', '：', '"', '"', ''', ''', '「', '」', '《', '》', '　']
+    # Note: 　 is ideographic space (U+3000)
+    chinese_punctuation = ['。', '，', '；', '？', '！', '：', '"', '"', ''', ''', '「', '」', '『', '』', '《', '》', '　', '、']
     
     # Store punctuation that appears before any words
     pending_start_punctuation = ""
@@ -384,17 +385,34 @@ def processSourceInterlinearFirstFixed(entry, stracker, language):
 
         sentence_id = stracker.sentence_id
 
+        # Separate leading and trailing punctuation from the gloss word
+        leading_punct = ""
+        trailing_punct = ""
+        gloss_word_core = gloss_word
+
+        # Extract leading punctuation
+        while gloss_word_core and gloss_word_core[0] in chinese_punctuation:
+            leading_punct += gloss_word_core[0]
+            gloss_word_core = gloss_word_core[1:]
+
+        # Extract trailing punctuation
+        while gloss_word_core and gloss_word_core[-1] in chinese_punctuation:
+            trailing_punct = gloss_word_core[-1] + trailing_punct
+            gloss_word_core = gloss_word_core[:-1]
+
+        print(f"Processing gloss: '{gloss_word}' → core: '{gloss_word_core}', leading: '{leading_punct}', trailing: '{trailing_punct}'")
+
         # Create a mapping between normalized and original text positions
         char_map = []
         normalized_runningtext = ""
-        
+
         for i, char in enumerate(runningtext):
             if not (char.isspace() or re.match(r'[^\w\s]', char)):
                 normalized_runningtext += char
                 char_map.append(i)
-        
+
         # Normalize the gloss word (remove punctuation and spaces for matching)
-        normalized_gloss = ''.join(c for c in gloss_word if not (c.isspace() or re.match(r'[^\w\s]', c)))
+        normalized_gloss = ''.join(c for c in gloss_word_core if not (c.isspace() or re.match(r'[^\w\s]', c)))
         
         # Find the match in normalized text
         match_index = normalized_runningtext.find(normalized_gloss)
@@ -431,11 +449,17 @@ def processSourceInterlinearFirstFixed(entry, stracker, language):
                     if element == "":
                         pass  # Don't create line breaks for every empty element
                     else:
-                        # Skip standalone punctuation since it will be handled by the gloss processing
+                        # Check if it's standalone punctuation
                         if element.strip() in chinese_punctuation or all(char in chinese_punctuation for char in element.strip()):
-                            print(f"Skipping standalone punctuation: {element.strip()}")
+                            # Don't add to pending if it's the same as the current gloss's leading punctuation
+                            # (this prevents doubling when punct appears in both runningtext and gloss)
+                            if element.strip() == leading_punct:
+                                print(f"Standalone punctuation '{element.strip()}' matches gloss leading punct - skipping")
+                                continue
+                            print(f"Standalone punctuation '{element.strip()}' found - adding to pending")
+                            pending_start_punctuation += element.strip()
                             continue
-                        
+
                         # For other content, create word elements
                         if element.strip():
                             word_id = generate_word_id(element)
@@ -447,12 +471,32 @@ def processSourceInterlinearFirstFixed(entry, stracker, language):
                             sentence_store.sentences[sentence_id] = sentence_data
                             sentence_store.wordMap[word_id] = sentence_id
 
+                # After extracting the matched text, we need to also remove any punctuation
+                # that was part of the original gloss but not part of gloss_word_core
                 runningtext = runningtext[original_end_index:]
+
+                print(f"runningtext after match removal: '{runningtext[:30]}...'")
+
+                # Check if runningtext starts with leading punctuation that we extracted
+                # (This handles cases where gloss has leading punct that was in runningtext)
+                if leading_punct and runningtext.startswith(leading_punct):
+                    print(f"Removing leading punctuation '{leading_punct}' from start of runningtext")
+                    runningtext = runningtext[len(leading_punct):]
+
+                # Check if runningtext starts with trailing punctuation that we extracted
+                if trailing_punct and runningtext.startswith(trailing_punct):
+                    print(f"Removing trailing punctuation '{trailing_punct}' from start of runningtext")
+                    runningtext = runningtext[len(trailing_punct):]
+                    print(f"runningtext after trailing punct removal: '{runningtext[:30]}...'")
+
+                print(f"Final runningtext: '{runningtext[:30]}...'")
+
+
             except:
                 print(f"Couldn't get match for gloss {gloss_word}")
 
         # Clean the gloss word for ID generation
-        gloss_word_cleaned = ''.join(c for c in gloss_word if not (c.isspace() or re.match(r'[^\w\s]', c)))
+        gloss_word_cleaned = ''.join(c for c in gloss_word_core if not (c.isspace() or re.match(r'[^\w\s]', c)))
         print(f"gloss_word_cleaned is {gloss_word_cleaned}")
         word_id = generate_word_id(gloss_word_cleaned)
         sentence_data = {
@@ -465,7 +509,7 @@ def processSourceInterlinearFirstFixed(entry, stracker, language):
         dictionaryforms = ""
         pos = ""
         reading = ""
-        words = language.parse_sent(gloss_word)
+        words = language.parse_sent(gloss_word_core)
         for lookupword in words:
             if len(lookupword) > 4:
                 grammar += lookupword[4]
@@ -483,60 +527,80 @@ def processSourceInterlinearFirstFixed(entry, stracker, language):
             'translation': translation
         }
 
-        # Check if gloss word contains only punctuation - if so, handle it appropriately
-        cleaned_gloss_for_punct_check = gloss_word.strip()
-        if all(char in chinese_punctuation for char in cleaned_gloss_for_punct_check) and cleaned_gloss_for_punct_check:
-            print(f"Processing gloss punctuation: {cleaned_gloss_for_punct_check}")
-            
-            # If no words have been created yet, store this punctuation to apply to the first word
-            if '<div class="word"' not in runninghtml:
-                print(f"Storing punctuation '{cleaned_gloss_for_punct_check}' for start of sentence")
-                pending_start_punctuation += cleaned_gloss_for_punct_check
-                continue
-            
-            # Find the last word div and append punctuation to its main word content
-            last_word_start = runninghtml.rfind('<div class="word"')
-            
-            if last_word_start != -1:
-                # Find the end of the opening tag
-                tag_end = runninghtml.find('>', last_word_start)
-                
-                if tag_end != -1:
-                    # Find the first nested div (which contains the gloss)
-                    first_nested_div = runninghtml.find('<div class="gloss">', tag_end)
-                    
-                    if first_nested_div != -1:
-                        # Insert the punctuation right before the first nested div
-                        runninghtml = runninghtml[:first_nested_div] + cleaned_gloss_for_punct_check + runninghtml[first_nested_div:]
-                        print(f"Successfully attached punctuation '{cleaned_gloss_for_punct_check}' to previous word")
-                    else:
-                        print(f"Could not find gloss div, adding punctuation at end")
-                        runninghtml += cleaned_gloss_for_punct_check
-                else:
-                    print(f"Could not find tag end, adding punctuation at end")
-                    runninghtml += cleaned_gloss_for_punct_check
-            else:
-                print(f"Could not find last word div, adding punctuation at end")
-                runninghtml += cleaned_gloss_for_punct_check
+        # Handle leading punctuation - this will be prepended to the current word, not attached to previous
+        # We'll handle this when building actual_word below
+        if leading_punct:
+            print(f"Found leading punctuation: '{leading_punct}' - will attach to current word")
+
+        # Check if gloss word core is empty (was only punctuation)
+        if not gloss_word_core:
+            # Pure punctuation entry - add it to pending so it attaches to next word
+            if leading_punct:
+                pending_start_punctuation += leading_punct
+                print(f"Pure leading punctuation '{leading_punct}' added to pending")
+            if trailing_punct:
+                # If there's trailing punct but no core, attach it to the previous word
+                last_word_start = runninghtml.rfind('<div class="word"')
+                if last_word_start != -1:
+                    tag_end = runninghtml.find('>', last_word_start) + 1
+                    first_nested = runninghtml.find('<', tag_end)
+                    if first_nested != -1:
+                        word_text_section = runninghtml[tag_end:first_nested]
+                        stripped = word_text_section.rstrip()
+                        whitespace = word_text_section[len(stripped):]
+                        new_section = stripped + trailing_punct + whitespace
+                        runninghtml = runninghtml[:tag_end] + new_section + runninghtml[first_nested:]
+                        print(f"Pure trailing punctuation '{trailing_punct}' attached to previous word")
             continue
-        
+
+        # Build the actual word to display
+        actual_word = gloss_word_core
+
         # Apply any pending start punctuation to this word
-        actual_word = gloss_word
         if pending_start_punctuation:
-            print(f"Applying pending start punctuation '{pending_start_punctuation}' to word '{gloss_word}'")
-            # For closing quotation marks, they should go before the word (visually they close the previous speaker)
-            if pending_start_punctuation in ['」', '"']:
-                actual_word = pending_start_punctuation + gloss_word
-            else:
-                actual_word = pending_start_punctuation + gloss_word
+            print(f"Applying pending start punctuation '{pending_start_punctuation}' to word '{gloss_word_core}'")
+            actual_word = pending_start_punctuation + actual_word
             pending_start_punctuation = ""  # Clear it after use
-        
+
+        # Apply leading punctuation from the gloss itself
+        if leading_punct:
+            print(f"Applying leading punctuation '{leading_punct}' to word '{gloss_word_core}'")
+            actual_word = leading_punct + actual_word
+
+        # Add the word to HTML
         runninghtml += getHTML(word=actual_word, gloss=gloss_gloss, word_id=word_id, sentence_id=sentence_id, language=language)
         sentence_store.sentences[sentence_id] = sentence_data
         sentence_store.wordMap[word_id] = sentence_id
 
-        #remove gloss_word from front of runningtext by matching text
-        runningtext = re.sub(r'^' + re.escape(gloss_word), '', runningtext)
+        # Handle trailing punctuation - append it directly to the word in the HTML template
+        if trailing_punct:
+            print(f"Processing trailing punctuation: {trailing_punct}")
+            # The word was just added via getHTML, which returns formatted HTML
+            # We need to insert the punct into that HTML after {word_with_ruby} before the newline
+            # Find the last </div> which closes the word div we just added
+            last_close = runninghtml.rfind('</div>')
+            if last_close != -1:
+                # Go backwards from there to find our word div opening
+                temp = runninghtml[:last_close]
+                word_div_start = temp.rfind('<div class="word"')
+                if word_div_start != -1:
+                    # Find the > that closes the opening tag
+                    tag_close = runninghtml.find('>', word_div_start) + 1
+                    # Find the first < after that (start of nested div)
+                    first_nested = runninghtml.find('<', tag_close)
+                    if first_nested != -1:
+                        # Get the text between tag close and first nested div
+                        word_text_section = runninghtml[tag_close:first_nested]
+                        # Strip trailing whitespace from word section, add punct, then add whitespace back
+                        stripped = word_text_section.rstrip()
+                        whitespace = word_text_section[len(stripped):]
+                        new_section = stripped + trailing_punct + whitespace
+                        runninghtml = runninghtml[:tag_close] + new_section + runninghtml[first_nested:]
+                        print(f"Successfully attached trailing punctuation '{trailing_punct}' to current word")
+
+        # Note: runningtext was already updated earlier to remove the matched core word.
+        # Any leading/trailing punctuation from the gloss should also be removed from runningtext
+        # if it's still there (this is handled above after the match)
 
     return runninghtml, sentence_store
 
@@ -1070,5 +1134,22 @@ def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, descrip
         # Write one file for each page, first sentence of each page has /n/n/n/n/n
 
 # Load the full Tang poems data
-write_html_interlinear("texts/interlinearouts/interlinear_redchamberch3.json", "texts/templates/readingtemplate.html", "../app/templates/texts/", "redchamber", "Dream of the Red Chamber", "Dream of the Red Chamber Chapter 3", Chinese(), starting_page=25, pagebreak=1)
+# TEST: Process just a few entries to verify punctuation fixes
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "--test":
+        print("TEST MODE: Processing entry 84 (page 40) with the punctuation issue")
+        data = getJSON("textcreation/texts/interlinearouts/interlinear_redchamberch4.json")
+        test_data = [data[84]]  # Entry 84 has the 說：『我 issue
+
+        # Write test data to temp file
+        import json
+        with open("textcreation/texts/interlinearouts/test_redchamber.json", "w") as f:
+            json.dump(test_data, f)
+
+        write_html_interlinear("textcreation/texts/interlinearouts/test_redchamber.json", "textcreation/texts/templates/readingtemplate.html", "app/templates/texts/", "redchamber_test", "Dream of the Red Chamber", "Dream of the Red Chamber Chapter 4", Chinese(), starting_page=40, pagebreak=1, total_pages=40)
+        print("✓ Test complete! Check app/templates/texts/redchamber_test/redchamber_test_40.html")
+    else:
+        print("FULL MODE: Processing all pages")
+        write_html_interlinear("textcreation/texts/interlinearouts/interlinear_redchamberch6.json", "textcreation/texts/templates/readingtemplate.html", "app/templates/texts/", "redchamber", "Dream of the Red Chamber", "Dream of the Red Chamber Chapter 6", Chinese(), starting_page=86, pagebreak=1)
 

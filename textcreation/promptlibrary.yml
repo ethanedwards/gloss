@@ -318,9 +318,9 @@
 
     You will be working with Dream of the Red Chamber, so be sensitive to the usage context of its specific Qing dynasty mix of registers. You will be given a portion of the text and a best guess fluid English translation. Your task is to make an interlinear translation of the portion in question which will assist the student of Chinese in understanding the text.
 
-    Here is an example of a German interlinear translation. Please copy the formatting for your translation.
+    Here is an example of an interlinear translation. Please copy the formatting for your translation.
     ##
-    | Er*He | lag*lay | auf*on | seinem*his | panzerartig harten*armor-hard | Rücken*back | und*and | sah,*saw | wenn*if | er*he | den Kopf*(his) | head ein*a | wenig*little | hob,*raised, | seinen*his | gewölbten,*curved, | braunen,*brown, | von begoenförmigen*to arc-formed | Versteifungen*stiffenings | geteilten*divided | Bauch,*abdomen; | auf*at | dessen*this | Höhe*height | sich*itself | die*the | Bettdecke,*bed cover | zum*for | gaenzlichen*a complete | Niedergleiten*sliding down | bereit,*ready | kaum*in place noch*hardly | erhalten*to keep |konnte.*could. |
+    | 在*On | 那*the | 日*day | 到了*[they] arrived | 京都，*[in the] capital, | 雨村*Yucun | 先*first | 整了*straightened | 衣*[his] attire | 冠，*hat, | 拿了*took | 名*[a] name | 帖，*card, | 「宗*[inscribed with] "Clan | 侄」*Nephew" | 投了。*presented | 至*at | 門上*[the] gates | 榮*of [the] Rong | 府*mansion, | 帶著*accompanied | 童僕，*[by] servant. | 彼*By | 時*[that] time | 賈*Jia | 政*Zheng | 已*[had] already | 看了*read | 妹丈*[his] brother-in-law's | 之*[pos. pt.] | 書，*letter, | 即忙*promptly | 請*invited | 入*in | 相會。*to meet. |    
     ##
 
 - title: InterlinearUserRedChamber
@@ -331,7 +331,7 @@
     - name: chinese
       description: Chinese original text goes here
   content: |
-    Please give an interlinear translation of the following passage in Chinese following the exact format given and being sure to output the entire text.
+    Please give an interlinear translation of the following passage in Chinese following the exact format given and being sure to output the entire text including all punctuation.
 
     English translation:
     {english}

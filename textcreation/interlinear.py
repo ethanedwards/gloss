@@ -347,7 +347,7 @@ if __name__ == '__main__':
     llm = claude()
 
     # Process redchamberch3 aligned data
-    with open('textcreation/texts/aligned/redchamberch3.json', 'r', encoding='utf-8') as f:
+    with open('textcreation/texts/aligned/redchamberch6.json', 'r', encoding='utf-8') as f:
         redchamber_data = json.load(f)
     
     # Prepare source and translation lists
@@ -356,13 +356,13 @@ if __name__ == '__main__':
     speaker_list = []  # No speaker info in red chamber sections
     
     # Configuration for batch processing
-    output_file = "textcreation/texts/interlinearouts/interlinear_redchamberch3.json"
+    output_file = "textcreation/texts/interlinearouts/interlinear_redchamberch6.json"
     batch_size = 2  # Process 2 sections at a time for better handling (these are large sections)
     
     # Automatically detect resume point from existing file
     resume_from = find_resume_point(output_file)
     
-    print("Starting Red Chamber Chapter 3 translation processing:")
+    print("Starting Red Chamber Chapter 6 translation processing:")
     print(f"- Total entries: {len(source_list)}")
     print(f"- Batch size: {batch_size}")
     print(f"- Output file: {output_file}")
@@ -385,7 +385,7 @@ if __name__ == '__main__':
     
     # Final message
     if not interrupted:
-        print("\n✅ Red Chamber Chapter 3 processing completed successfully!")
+        print("\n✅ Red Chamber Chapter 6 processing completed successfully!")
         print("📁 Results saved to: " + str(output_file))
         print("🏛️ Ready for use in the Gloss interlinear reader!")
     else:
