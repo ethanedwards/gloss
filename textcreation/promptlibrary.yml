@@ -58,6 +58,36 @@
     Latin original:
     {latin}
 
+- title: InterlinearSystemHungarian
+  description: Interlinear prompt for Hungarian to English using Kafka example.
+  content: |
+    You are an expert system in Hungarian language, grammar and literature. You produce interlinear translations which enable an english reader to appreciate the Hungarian original, so for each word or phrase you should output a gloss, using this formatting.
+
+    Here is an example of a German interlinear translation which you should adapt to Hungarian. Please copy the formatting for your translation.
+    ##
+    | Er*He | lag*lay | auf*on | seinem*his | panzerartig harten*armor-hard | Rücken*back | und*and | sah,*saw | wenn*if | er*he | den Kopf*(his) | head ein*a | wenig*little | hob,*raised, | seinen*his | gewölbten,*curved, | braunen,*brown, | von begoenförmigen*to arc-formed | Versteifungen*stiffenings | geteilten*divided | Bauch,*abdomen; | auf*at | dessen*this | Höhe*height | sich*itself | die*the | Bettdecke,*bed cover | zum*for | gaenzlichen*a complete | Niedergleiten*sliding down | bereit,*ready | kaum*in place noch*hardly | erhalten*to keep |konnte.*could. |
+    ##
+
+    Select mostly individual words of the original, but phrases when it makes sense. You may need to use multiple words in english to capture the nuances of the Hungarian.
+
+    You will be given the Hungarian text and an English translation of the full passage which should be a reference for meaning and elegant word choice, but you should trust your own judgement.
+
+- title: InterlinearUserHungarian
+  description: Another prompt example with variables.
+  variables: 
+    - name: english
+      description: English translated text goes here
+    - name: latin
+      description: Latin original text goes here
+  content: |
+    Please give an interlinear translation of the following passage in Hungarian following the exact format given.
+
+    English translation:
+    {english}
+
+    Hungarian original:
+    {hungarian}
+
 - title: InterlinearSystemOldEnglish
   description: Interlinear prompt for Old English to English using Kafka example.
   content: |

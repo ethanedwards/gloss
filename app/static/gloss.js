@@ -101,6 +101,7 @@ function addChatMessage(sender, text, append = false) {
         if (messageDiv) {
             const textDiv = messageDiv.querySelector('.message-text');
             textDiv.innerHTML += text; // Append the new text to the existing message
+            // No auto-scrolling during streaming
         } else {
             messageDiv = null; // Create a new message if there is no existing tutor message
         }
@@ -109,21 +110,24 @@ function addChatMessage(sender, text, append = false) {
     if (!messageDiv) {
         messageDiv = document.createElement('div');
         messageDiv.className = `chat-message ${sender}`;
-        
+
         const senderDiv = document.createElement('div');
         senderDiv.className = 'sender';
         senderDiv.textContent = sender.charAt(0).toUpperCase() + sender.slice(1) + ':';
-        
+
         const textDiv = document.createElement('div');
         textDiv.className = 'message-text';
         textDiv.innerHTML = text; // Use innerHTML carefully to ensure text is properly escaped if coming from users
-        
+
         messageDiv.appendChild(senderDiv);
         messageDiv.appendChild(textDiv);
         chatInterface.appendChild(messageDiv);
+
+        // Only auto-scroll for new student messages, not for new tutor responses
+        if (sender === 'student') {
+            chatInterface.scrollTop = chatInterface.scrollHeight;
+        }
     }
-    
-    chatInterface.scrollTop = chatInterface.scrollHeight; // Scroll to latest message
 }
 
 /*
@@ -451,19 +455,8 @@ if(isMobile){
 
 
 
-document.addEventListener('copy', function(event) {
-    let selection = window.getSelection();
-    if (!selection.rangeCount) return;
-
-    let finalCopyText = getPrompt(getElements(selection));
-
-    if (event.clipboardData) {
-        event.preventDefault();
-        event.clipboardData.setData('text/plain', finalCopyText);
-    } else if (window.clipboardData) {
-        window.clipboardData.setData('Text', finalCopyText);
-    }
-});
+// Copy behavior - just copy the main text (foreign language text)
+// Removed custom copy handler to allow normal browser copy/paste
 
 
 

@@ -333,8 +333,8 @@ def extract_sections(content, divider="---"):
 #sections2 = extract_sections(content2)
 
 #Put it all together
-content1 = open('textcreation/texts/sources/redchamberch6zh.txt', 'r').read()
-content2 = open('textcreation/texts/sources/redchamberch6en.txt', 'r').read()
+content1 = open('textcreation/texts/sources/melancholy1mg.txt', 'r').read()
+content2 = open('textcreation/texts/sources/melancholy1en.txt', 'r').read()
 
 # remove all numbers from content1 and content2
 content1 = re.sub(r'\d+', '', content1)
@@ -378,4 +378,4 @@ for i in range(len(sections1)):
     translist.append("")
     print(f"added {i}")
 
-write_to_json(sourcelist, translist, file_name='textcreation/texts/aligned/redchamberch6.json')
+write_to_json(sourcelist, translist, file_name='textcreation/texts/aligned/melancholy1.json')
