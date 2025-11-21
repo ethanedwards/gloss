@@ -163,11 +163,13 @@ function initializeTextConfig() {
     const showPos = document.querySelector('meta[name="show_pos"]');
     const showDictionary = document.querySelector('meta[name="show_dictionary"]');
     const showReading = document.querySelector('meta[name="show_reading"]');
+    const showGrammar = document.querySelector('meta[name="show_grammar"]');
     const posFormat = document.querySelector('meta[name="pos_format"]');
-    
+
     textConfig.showPos = showPos ? showPos.content === 'true' : false;
     textConfig.showDictionary = showDictionary ? showDictionary.content === 'true' : false;
     textConfig.showReading = showReading ? showReading.content === 'true' : false;
+    textConfig.showGrammar = showGrammar ? showGrammar.content === 'true' : false;
     textConfig.posFormat = posFormat ? posFormat.content : 'code';
 }
 
@@ -275,6 +277,17 @@ document.addEventListener('DOMContentLoaded', (event) => {
                 }
             }
         }
+
+        if (textConfig.showGrammar) {
+            const grammar = word.querySelector('.grammar');
+            if (grammar) {
+                grammar.classList.add('config-show');
+                // Set initial visibility based on gloss state
+                if (!gloss) {
+                    grammar.classList.add('hidden-element');
+                }
+            }
+        }
     });
 });
 
@@ -321,7 +334,17 @@ function handleWordInteraction(event) {
             }
         }
     }
-    
+
+    if (textConfig.showGrammar) {
+        const grammar = wordElement.querySelector('.grammar');
+        if (grammar) {
+            grammar.classList.toggle('permanent-element');
+            if (grammar.classList.contains('hidden-element')) {
+                grammar.classList.remove('hidden-element');
+            }
+        }
+    }
+
     lookup(wordElement);
 }
 
@@ -592,6 +615,21 @@ function toggleGloss() {
             } else {
                 if (!readingElement.classList.contains('permanent-element')) {
                     readingElement.classList.add('hidden-element');
+                }
+            }
+        });
+    }
+
+    if (textConfig.showGrammar) {
+        const grammarElements = document.querySelectorAll('.grammar.config-show');
+        grammarElements.forEach(function(grammarElement) {
+            if (gloss) {
+                if (!grammarElement.classList.contains('permanent-element')) {
+                    grammarElement.classList.remove('hidden-element');
+                }
+            } else {
+                if (!grammarElement.classList.contains('permanent-element')) {
+                    grammarElement.classList.add('hidden-element');
                 }
             }
         });

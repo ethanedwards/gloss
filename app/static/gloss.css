@@ -47,10 +47,11 @@ body {
     order: 6; /* Show after everything else */
 }
 
-/* Hide pos and dictionary completely by default */
+/* Hide pos, dictionary, reading, grammar completely by default */
 .interlinear-container .word .pos,
 .interlinear-container .word .dictionary,
 .interlinear-container .word .reading,
+.interlinear-container .word .grammar,
 .interlinear-container .word .sourcesentence,
 .interlinear-container .word .translation {
     display: none;
@@ -84,10 +85,19 @@ body {
     order: 1; /* Show between word and gloss */
 }
 
+.interlinear-container .word .grammar.config-show {
+    display: block;
+    font-size: 0.7em;
+    color: #666;
+    user-select: none;
+    order: 3; /* Show after gloss */
+}
+
 /* Hidden states for configurable elements */
 .interlinear-container .word .pos.hidden-element,
 .interlinear-container .word .dictionary.hidden-element,
-.interlinear-container .word .reading.hidden-element {
+.interlinear-container .word .reading.hidden-element,
+.interlinear-container .word .grammar.hidden-element {
     color: transparent;
 }
 

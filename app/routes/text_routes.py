@@ -95,7 +95,28 @@ TEXT_CONFIG = {
         'pages': 320,
         'template_base': 'texts/tangpoems/tangpoems_{}.html',
         'sentence_store': 'texts/tangpoems/sentence_stores/tangpoems_{}.json'
+    },
+    'melancholy': {
+        'pages': 2,
+        'template_base': 'texts/melancholy/melancholy_{}.html',
+        'sentence_store': 'texts/melancholy/sentence_stores/melancholy_{}.json'
+    },
+    'mark': {
+        'pages': 16,
+        'template_base': 'texts/mark/mark_{}.html',
+        'sentence_store': 'texts/mark/sentence_stores/mark_{}.json'
+    },
+    'tractatus': {
+        'pages': 7,
+        'template_base': 'texts/tractatus/tractatus_{}.html',
+        'sentence_store': 'texts/tractatus/sentence_stores/tractatus_{}.json'
+    },
+    'periodictable': {
+        'pages': 22,
+        'template_base': 'texts/periodictable/periodictable_{}.html',
+        'sentence_store': 'texts/periodictable/sentence_stores/periodictable_{}.json'
     }
+
     # Add other texts...
 }
 

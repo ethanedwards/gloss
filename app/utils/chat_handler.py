@@ -37,7 +37,7 @@ class ChatHandler:
             buffer=self.conversation_buffer, 
             systemprompt=system_prompt
         )
-        
+
         return Response(
             self.generate_response(messages), 
             mimetype='text/event-stream'
@@ -62,5 +62,7 @@ prompt_dict = {
     'ninesols': 'ChatNinesols',
     'labyrinth': 'ChatLabyrinthOfSolitude',
     'grandesertao': 'ChatGrandeSertao',
-    'tangpoems': 'ChatTangPoems'
+    'tangpoems': 'ChatTangPoems',
+    'melancholy': 'ChatMelancholy',
+    'tractatus': 'ChatTractatus'
 }
