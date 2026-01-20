@@ -106,15 +106,45 @@ TEXT_CONFIG = {
         'template_base': 'texts/mark/mark_{}.html',
         'sentence_store': 'texts/mark/sentence_stores/mark_{}.json'
     },
+    'matthew': {
+        'pages': 12,
+        'template_base': 'texts/matthew/matthew_{}.html',
+        'sentence_store': 'texts/matthew/sentence_stores/matthew_{}.json'
+    },
+    'luke': {
+        'pages': 2,
+        'template_base': 'texts/luke/luke_{}.html',
+        'sentence_store': 'texts/luke/sentence_stores/luke_{}.json'
+    },
     'tractatus': {
         'pages': 7,
         'template_base': 'texts/tractatus/tractatus_{}.html',
         'sentence_store': 'texts/tractatus/sentence_stores/tractatus_{}.json'
     },
+    'tractatus_new': {
+        'pages': 3,
+        'template_base': 'texts/tractatus_new/tractatus_{}.html',
+        'sentence_store': 'texts/tractatus_new/sentence_stores/tractatus_{}.json'
+    },
     'periodictable': {
         'pages': 22,
         'template_base': 'texts/periodictable/periodictable_{}.html',
         'sentence_store': 'texts/periodictable/sentence_stores/periodictable_{}.json'
+    },
+    "hazan": {
+        'pages': 47,
+        'template_base': 'texts/hazan/hazan_{}.html',
+        'sentence_store': 'texts/hazan/sentence_stores/hazan_{}.json'
+    },
+    "perec": {
+        'pages': 10,  # Will be updated after generation
+        'template_base': 'texts/perec/perec_{}.html',
+        'sentence_store': 'texts/perec/sentence_stores/perec_{}.json'
+    },
+    "rumi_jahan": {
+        'pages': 1,
+        'template_base': 'texts/rumi_jahan/rumi_jahan_{}.html',
+        'sentence_store': 'texts/rumi_jahan/sentence_stores/rumi_jahan_{}.json'
     }
 
     # Add other texts...

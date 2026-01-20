@@ -3,6 +3,7 @@ import spacy
 
 class French(Language):
     def __init__(self):
+        self.name = "french"
         self.nlp = spacy.load("fr_dep_news_trf")
 
     def get_grammar(self, word:str, sent:str, ind:int):

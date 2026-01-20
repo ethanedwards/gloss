@@ -28,6 +28,58 @@ ADDITIONAL_PUNCTUATION = '«»„"‹›''""-–—？，！。：；「」《�
 # Combine with standard punctuation
 EXTENDED_PUNCTUATION = string.punctuation + ADDITIONAL_PUNCTUATION
 
+# Global tracking for problematic entries during HTML generation
+# This tracks entries that have alignment issues, truncated data, or many unglossed words
+_problematic_entries = []
+
+def reset_problematic_entries():
+    """Reset the problematic entries tracker. Call before each HTML generation run."""
+    global _problematic_entries
+    _problematic_entries = []
+
+def report_problematic_entry(entry_idx, source_preview, issue_type, details):
+    """Report a problematic entry for later summary."""
+    global _problematic_entries
+    _problematic_entries.append({
+        'entry_idx': entry_idx,
+        'source_preview': source_preview[:80] + '...' if len(source_preview) > 80 else source_preview,
+        'issue_type': issue_type,
+        'details': details
+    })
+
+def print_problematic_entries_summary():
+    """Print a summary of all problematic entries found during HTML generation."""
+    global _problematic_entries
+    if not _problematic_entries:
+        return
+
+    print("\n" + "="*80)
+    print("⚠⚠⚠ WARNING: PROBLEMATIC ENTRIES DETECTED DURING HTML GENERATION ⚠⚠⚠")
+    print("="*80)
+    print(f"\nFound {len(_problematic_entries)} entries with potential issues:\n")
+
+    # Group by issue type
+    by_type = {}
+    for entry in _problematic_entries:
+        issue_type = entry['issue_type']
+        if issue_type not in by_type:
+            by_type[issue_type] = []
+        by_type[issue_type].append(entry)
+
+    for issue_type, entries in by_type.items():
+        print(f"\n--- {issue_type} ({len(entries)} entries) ---")
+        for entry in entries[:10]:  # Show first 10 of each type
+            print(f"  Entry {entry['entry_idx']}: {entry['source_preview']}")
+            print(f"    → {entry['details']}")
+        if len(entries) > 10:
+            print(f"  ... and {len(entries) - 10} more")
+
+    print("\n" + "-"*80)
+    print("These entries may display incorrectly due to truncated or misaligned")
+    print("interlinear data. Consider re-running interlinear.py for these entries")
+    print("or manually reviewing the JSON data.")
+    print("="*80 + "\n")
+
 wakati = MeCab.Tagger("-Owakati")
 
 
@@ -161,13 +213,13 @@ def processInterlinear(datalist, language='', pagebreak=10, verse_mode=False, us
     current_sentence = datalist[0]['source']
     current_chapter = None
 
-    #Loop through each entry
-    for entry in datalist:
+    #Loop through each entry with index for error tracking
+    for data_entry_idx, entry in enumerate(datalist):
         # Handle verse mode (for biblical texts and philosophical propositions)
         if verse_mode and 'verse' in entry:
-            verse_ref = entry['verse']  # e.g., "1:1" for Bible or "1.1" for Tractatus
+            verse_ref = entry['verse']  # e.g., "1:1" for Bible, "1.1" for Tractatus, or "1" for simple chapters
 
-            # Check if it's Bible format (with colon) or proposition format (with dots)
+            # Check format: Bible (with colon), Proposition (with dot), or Simple Chapter (plain number)
             if ':' in verse_ref:
                 # Bible verse format: "chapter:verse"
                 chapter, verse = verse_ref.split(':')
@@ -194,8 +246,8 @@ def processInterlinear(datalist, language='', pagebreak=10, verse_mode=False, us
                 if verse != "1":  # Add line break before all verses except the first
                     runninghtml += '</div><div class="word-group">'
                 runninghtml += f'<span class="verse-number">{verse}</span>'
-            else:
-                # Proposition format (e.g., "1", "1.1", "2.01") - treat top-level as chapters
+            elif '.' in verse_ref:
+                # Proposition format (e.g., "1.1", "2.01") - treat top-level as chapters
                 # Extract top-level proposition number (before first dot)
                 top_level = verse_ref.split('.')[0]
 
@@ -218,16 +270,35 @@ def processInterlinear(datalist, language='', pagebreak=10, verse_mode=False, us
                     current_chapter = top_level
 
                 # Add proposition number before the proposition text and line break after previous
-                # Don't add line break before the very first sub-proposition
-                if '.' in verse_ref:  # Sub-propositions get line breaks
-                    runninghtml += '</div><div class="word-group">'
+                runninghtml += '</div><div class="word-group">'
                 runninghtml += f'<span class="verse-number">{verse_ref}</span>'
+            else:
+                # Simple chapter format (e.g., "1", "2", "3") - just page breaks, no verse numbers
+                chapter = verse_ref
+
+                # Check if we've moved to a new chapter
+                if chapter != current_chapter:
+                    # If we're starting a new chapter and it's not the first, trigger page break
+                    if current_chapter is not None:
+                        # Close current page and start new one
+                        runninghtmls.append(runninghtml)
+                        sentence_stores.append(sentence_store)
+                        runninghtml = ""
+                        sentence_store = sentenceStore()
+                        counter = 0  # Reset counter for new page
+
+                    current_chapter = chapter
+                # No verse numbers displayed for simple chapter mode
+
+        # Skip blank entries in verse_mode (chapter breaks are handled by verse field changes)
+        if verse_mode and (entry['source'] == "" or (entry['source'] and entry['source'].strip() == "")):
+            continue
 
         # normal languages
         #add, store = processSource(entry, stracker, language)
         # Use unified processor if requested, otherwise use legacy processors
         if use_unified:
-            add, store = processSourceInterlinearUnified(entry, stracker, language)
+            add, store = processSourceInterlinearUnified(entry, stracker, language, data_entry_idx=data_entry_idx)
         elif language.name.lower() in ['german', 'latin']:
             # Use simplified German processor for German/Latin to avoid punctuation doubling
             add, store = processSourceInterlinearGerman(entry, stracker, language)
@@ -240,18 +311,20 @@ def processInterlinear(datalist, language='', pagebreak=10, verse_mode=False, us
         # check if the pattern \n\n\n\n\n\n all caps \n\n\n\n\n\n is in str(store.sentences) or if it has 2. 3. or 4.
         #Chapter Checker
         #if (re.search(r'\n\s*\n\s*\n\s*\n\s*([A-Z\s]+)\n\s*\n\s*\n\s*\n', entry['source']) or re.search(r'([2-9]\.\s+)', entry['source'])):
-        if entry['source'] == "" or (entry['source'] and entry['source'].strip() == ""):
+        if not verse_mode and (entry['source'] == "" or (entry['source'] and entry['source'].strip() == "")):
             # Blank source entries indicate chapter breaks - force page break
+            # BUT: if we're in verse_mode, chapter breaks are controlled by verse field, not blank entries
             if runninghtml:  # Only if we have content to save
                 counter = pagebreak  # Force immediate page break
                 runninghtml += """
                     </div>
                     <div class="word-group">"""
         if current_sentence != entry['source']:
-            if current_sentence.endswith("\n") or entry['source'].startswith("\n"):
-                runninghtml += """
-                    </div>
-                    <div class="word-group">"""
+            # Always add a line break between different entries (observations/sentences)
+            # This ensures each entry displays on its own line
+            # Previously only added break if entry ended/started with \n, but this missed
+            # cases like Perec where each entry is a separate observation without trailing newlines
+            runninghtml += '<div class="line-break"></div>'
             current_sentence = entry['source']
         if counter == pagebreak:
             counter=0
@@ -341,8 +414,9 @@ def processSourceH(entry):
     return runninghtml
 
 class sentenceStore:
-    sentences = {}  # Will store sentence pairs indexed by sentence ID
-    wordMap = {}     # Will map word IDs to sentence IDs
+    def __init__(self):
+        self.sentences = {}  # Will store sentence pairs indexed by sentence ID
+        self.wordMap = {}     # Will map word IDs to sentence IDs
 
 class sentenceTracker:
     sentence_id = 0
@@ -828,7 +902,7 @@ def verify_interlinear_alignment(source, interlinear):
     return result
 
 
-def reconstruct_interlinear_with_alignment(source, interlinear, language):
+def reconstruct_interlinear_with_alignment(source, interlinear, language, entry_idx=None):
     """
     Reconstructs interlinear entries by adding missing punctuation from source.
 
@@ -842,6 +916,7 @@ def reconstruct_interlinear_with_alignment(source, interlinear, language):
         source: The actual source text
         interlinear: List of [word, gloss, ...] entries
         language: Language object
+        entry_idx: Entry index for error reporting (optional)
 
     Returns:
         List of [word, gloss, ...] entries with missing punctuation added
@@ -884,6 +959,14 @@ def reconstruct_interlinear_with_alignment(source, interlinear, language):
             print(f"  Interlinear starts: {interlinear_first_words}")
             print(f"  This entry has bad data - interlinear doesn't match source at all.")
             print(f"  Reconstructing from SOURCE to preserve original text.")
+
+            # Report this problematic entry
+            if entry_idx is not None:
+                report_problematic_entry(
+                    entry_idx, source,
+                    "CATASTROPHIC MISMATCH",
+                    f"Interlinear doesn't match source. Source starts '{source_words[:2]}', interlinear starts '{interlinear_first_words[:2]}'"
+                )
 
             # For catastrophic mismatches, create interlinear from source
             # Use regex to split on whitespace while keeping words with apostrophes/hyphens together
@@ -1046,13 +1129,12 @@ def reconstruct_interlinear_with_alignment(source, interlinear, language):
                     found_after_punct = True
                     print(f"  → Found '{word}' after skipping prefix: {repr(punct_prefix)}")
 
-                    # Add the prefix as unglossed standalone entries
-                    for char in punct_prefix:
-                        if char in ' \t\n':
-                            continue  # Skip whitespace
-                        else:
-                            result.append([char, ""])
-                            print(f"  → Added unglossed prefix: '{char}'")
+                    # Add the prefix as unglossed entries - split by whitespace, not by character
+                    prefix_tokens = punct_prefix.split()
+                    for token in prefix_tokens:
+                        if token:  # Skip empty tokens
+                            result.append([token, ""])
+                            print(f"  → Added unglossed prefix token: '{token}'")
 
                     # Update source_pos and rebuild char_map from new position
                     source_pos += skip_chars
@@ -1134,42 +1216,54 @@ def reconstruct_interlinear_with_alignment(source, interlinear, language):
         before_content = source[source_pos:actual_start]
 
         # Process "before" content
-        # First, count consecutive newlines for br tag insertion
-        newline_count = 0
-        i = 0
-        while i < len(before_content) and before_content[i] in '\n \t':
-            if before_content[i] == '\n':
-                newline_count += 1
-            i += 1
+        # Count ALL newlines in before_content and add <br> tags for each
+        # This preserves the visual structure of texts like Perec's observations
+        newline_count = before_content.count('\n')
 
-        # If 2+ newlines, add br markers (for chapter titles, section breaks)
-        if newline_count >= 2:
-            # Add (newline_count - 1) br tags as standalone entries
-            for _ in range(newline_count - 1):
+        # Add a <br> tag for each newline (not just for 2+ consecutive newlines)
+        if newline_count >= 1:
+            for _ in range(newline_count):
                 result.append(['<br>', ''])
-            print(f"  → Added {newline_count - 1} <br> tags for visual break")
+            if newline_count > 1:
+                print(f"  → Added {newline_count} <br> tags for visual break")
 
+        # Process "before" content - split into tokens, not individual characters
+        # This prevents letter-by-letter breakdown of missed words
+        before_tokens = []
+        current_token = ""
         for c in before_content:
-            if c == ' ' or c == '\t' or c == '\n':
-                # Spaces and newlines - already handled above
-                continue
-            elif c in trailing_punct:
-                # Trailing punct should attach to PREVIOUS word
-                if result and c not in result[-1][0]:
-                    result[-1][0] = result[-1][0] + c
-                    print(f"  → Attached '{c}' to previous word: {result[-1][0]}")
-            elif c in leading_punct:
-                # Leading punct should attach to CURRENT word
-                if c not in source_word:
-                    source_word = c + source_word
-                    print(f"  → Prepended '{c}' to current word")
-            elif c == '\u3000':  # Ideographic space
-                # Can be ignored like regular space
-                continue
+            if c in ' \t\n\u3000':
+                if current_token:
+                    before_tokens.append(current_token)
+                    current_token = ""
             else:
-                # Other characters (brackets, numbers, etc.) - add as standalone
-                result.append([c, ""])
-                print(f"  → Added standalone: '{c}'")
+                current_token += c
+        if current_token:
+            before_tokens.append(current_token)
+
+        for token in before_tokens:
+            # Check if token is pure punctuation
+            is_pure_trailing_punct = all(c in trailing_punct for c in token)
+            is_pure_leading_punct = all(c in leading_punct for c in token)
+
+            if is_pure_trailing_punct:
+                # Attach trailing punctuation to previous word
+                # BUT don't attach to <br> tags - those are structural markers, not words
+                # Also check if the punctuation is already at the end of the previous word
+                if result and result[-1][0] != '<br>' and not result[-1][0].endswith(token):
+                    result[-1][0] = result[-1][0] + token
+                    print(f"  → Attached '{token}' to previous word: {result[-1][0]}")
+                else:
+                    # Can't attach - skip this punctuation as it's likely already in the interlinear
+                    print(f"  → Skipped attaching '{token}' (prev word is <br> or already ends with it)")
+            elif is_pure_leading_punct:
+                # Prepend leading punctuation to current word
+                source_word = token + source_word
+                print(f"  → Prepended '{token}' to current word")
+            else:
+                # This is a word or mixed content - add as unglossed entry
+                result.append([token, ""])
+                print(f"  → Added unglossed: '{token}'")
 
         # Check for trailing punctuation AFTER the word in source
         check_pos = actual_end
@@ -1222,10 +1316,19 @@ def reconstruct_interlinear_with_alignment(source, interlinear, language):
                     result.append([unglossed_word, ""])
                     print(f"    → Added unglossed from remaining: '{unglossed_word}'")
 
+            # Report if there's a significant amount of remaining content (likely truncation)
+            if entry_idx is not None and len(words_in_remaining) > 5:
+                remaining_ratio = len(remaining) / len(source) if len(source) > 0 else 0
+                report_problematic_entry(
+                    entry_idx, source,
+                    "TRUNCATED INTERLINEAR",
+                    f"{len(words_in_remaining)} unglossed words ({remaining_ratio:.0%} of source) at end of entry"
+                )
+
     return result
 
 
-def processSourceInterlinearUnified(entry, stracker, language):
+def processSourceInterlinearUnified(entry, stracker, language, data_entry_idx=None):
     """
     Universal interlinear processor that handles all languages correctly.
 
@@ -1235,12 +1338,81 @@ def processSourceInterlinearUnified(entry, stracker, language):
     3. Processes each entry to generate HTML with proper attachments
 
     Works for all languages: Chinese, Japanese, German, Latin, Greek, etc.
+
+    Args:
+        entry: Entry dict with source, translation, interlinear, etc.
+        stracker: Sentence tracker
+        language: Language object
+        data_entry_idx: Index of this entry in the original data (for error reporting)
     """
     text = entry['source']
     translation = entry['translation']
     interlinear = entry['interlinear']
     speaker = entry['speaker'] if 'speaker' in entry else None
     parsinginfo = entry['parseinfo'] if 'parseinfo' in entry else []
+
+    # Check for entries already marked as failed or with empty/very short interlinear
+    is_failed_entry = entry.get('_failed_verification') or not interlinear or len(interlinear) < 3
+
+    # Also check coverage ratio for entries that slipped through
+    if interlinear and len(interlinear) >= 3:
+        interlinear_text = ''.join([w[0] for w in interlinear if w and w[0] != '<br>'])
+        coverage_ratio = len(interlinear_text) / len(text) if len(text) > 0 else 0
+        if coverage_ratio < 0.5 and len(text) > 50:
+            is_failed_entry = True
+
+    if is_failed_entry:
+        if data_entry_idx is not None:
+            report_problematic_entry(
+                data_entry_idx, text,
+                "FAILED/INCOMPLETE ENTRY",
+                "Entry has no glosses or very low coverage - displaying source text only"
+            )
+
+        # For failed entries, display the original source text cleanly without garbled reconstruction
+        # Split source into words and display each word without gloss
+        if stracker.current_sentence != text:
+            stracker.current_sentence = text
+            stracker.increase()
+
+        if speaker:
+            runninghtml = f"""
+                        </div>
+                        <div class="speaker">{speaker}</div>
+                        <div class="word-group">"""
+        else:
+            runninghtml = ""
+
+        sentence_store = sentenceStore()
+        sentence_id = stracker.sentence_id
+
+        # Create clean interlinear from source - each word gets empty gloss
+        # This preserves the original text layout without garbled reconstruction
+        source_words = text.split()
+        for word in source_words:
+            if not word.strip():
+                continue
+            word_id = generate_word_id(word + str(uuid.uuid4()))
+            sentence_data = {
+                'source': text,
+                'translation': translation
+            }
+
+            runninghtml += f"""
+    <div class="word failed-gloss" title="[Gloss unavailable]" data-word-id="{word_id}" data-sentence-id="{sentence_id}">
+        {word}
+        <div class="gloss hidden-gloss"></div>
+        <div class="alt"></div>
+        <div class="pos"></div>
+        <div class="reading"></div>
+        <div class="grammar"></div>
+        <div class="dictionary"></div>
+    </div>
+    """
+            sentence_store.sentences[sentence_id] = sentence_data
+            sentence_store.wordMap[word_id] = sentence_id
+
+        return runninghtml, sentence_store
 
     if stracker.current_sentence != text:
         stracker.current_sentence = text
@@ -1258,7 +1430,7 @@ def processSourceInterlinearUnified(entry, stracker, language):
     sentence_id = stracker.sentence_id
 
     # Step 1: Reconstruct interlinear with proper alignment
-    aligned_interlinear = reconstruct_interlinear_with_alignment(text, interlinear, language)
+    aligned_interlinear = reconstruct_interlinear_with_alignment(text, interlinear, language, entry_idx=data_entry_idx)
 
     # Step 2: Process each entry
     for entry_idx, entry_data in enumerate(aligned_interlinear):
@@ -1273,8 +1445,9 @@ def processSourceInterlinearUnified(entry, stracker, language):
             continue
 
         # Special case: <br> tags for visual breaks (chapter titles, etc.)
+        # Use div.line-break instead of <br> for flexbox compatibility
         if word == '<br>':
-            runninghtml += '<br>\n'
+            runninghtml += '<div class="line-break"></div>\n'
             continue
 
         # Check if this is a pure punctuation/whitespace entry
@@ -1398,9 +1571,9 @@ def processSourceInterlinearUnified(entry, stracker, language):
         elif text[i] not in ' \t':
             break
 
-    # If there are 2+ newlines, add <br> tags to create visual separation
+    # If there are 2+ newlines, add line-break divs to create visual separation
     if trailing_newlines >= 2:
-        runninghtml += '<br>' * (trailing_newlines - 1)
+        runninghtml += '<div class="line-break"></div>' * (trailing_newlines - 1)
 
     return runninghtml, sentence_store
 
@@ -2044,6 +2217,9 @@ def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, descrip
         verse_mode: If True, handles chapter:verse structure from 'verse' field (one chapter per page)
         use_unified: If True, uses the new unified processor for all languages
     """
+    # Reset problematic entries tracker for this run
+    reset_problematic_entries()
+
     # normal languages
     data = getJSON(jsonfile)
     if limit_entries:
@@ -2097,6 +2273,9 @@ def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, descrip
         print("Wrote page " + str(i))
         # Write one file for each page, first sentence of each page has /n/n/n/n/n
 
+    # Print summary of any problematic entries found during processing
+    print_problematic_entries_summary()
+
 # Load the full Tang poems data
 # TEST: Process just a few entries to verify punctuation fixes
 if __name__ == "__main__":
@@ -2135,6 +2314,78 @@ if __name__ == "__main__":
         print("✓ Gospel of Mark processing complete!")
         print("  Each chapter is a separate page: mark_1.html, mark_2.html, etc.")
         print("  Check app/templates/texts/mark/ for output files")
+    # Usage: --matthew [start_chapter] [end_chapter]
+    # Examples: --matthew (uses full interlinear_matthew.json)
+    #           --matthew 1 2 (uses interlinear_matthew_1_2.json for infancy narrative)
+    elif len(sys.argv) > 1 and sys.argv[1] == "--matthew":
+        from languages.greek import KoineGreek
+
+        # Parse optional chapter range
+        start_chapter = int(sys.argv[2]) if len(sys.argv) > 2 else None
+        end_chapter = int(sys.argv[3]) if len(sys.argv) > 3 else start_chapter
+
+        if start_chapter:
+            input_file = f"textcreation/texts/interlinearouts/interlinear_matthew_{start_chapter}_{end_chapter}.json"
+            chapter_desc = f"chapters {start_chapter}-{end_chapter}"
+        else:
+            input_file = "textcreation/texts/interlinearouts/interlinear_matthew.json"
+            chapter_desc = "all chapters"
+
+        print(f"GOSPEL OF MATTHEW MODE: Processing {chapter_desc}")
+
+        # Process Gospel of Matthew with verse mode enabled
+        # Uses template with translation display option
+        write_html_interlinear(
+            input_file,
+            "textcreation/texts/templates/grammar_with_translation.html",
+            "app/templates/texts/",
+            "matthew",
+            "Gospel of Matthew",
+            "Gospel of Matthew in Koine Greek",
+            KoineGreek(),
+            starting_page=start_chapter if start_chapter else 1,
+            verse_mode=True,  # Enable chapter/verse structure (one chapter per page)
+            use_unified=True  # Use unified processor to preserve morphGNT parsing
+        )
+        print("✓ Gospel of Matthew processing complete!")
+        print("  Each chapter is a separate page: matthew_1.html, matthew_2.html, etc.")
+        print("  Check app/templates/texts/matthew/ for output files")
+    # Usage: --luke [start_chapter] [end_chapter]
+    # Examples: --luke (uses full interlinear_luke.json)
+    #           --luke 1 2 (uses interlinear_luke_1_2.json for infancy narrative)
+    elif len(sys.argv) > 1 and sys.argv[1] == "--luke":
+        from languages.greek import KoineGreek
+
+        # Parse optional chapter range
+        start_chapter = int(sys.argv[2]) if len(sys.argv) > 2 else None
+        end_chapter = int(sys.argv[3]) if len(sys.argv) > 3 else start_chapter
+
+        if start_chapter:
+            input_file = f"textcreation/texts/interlinearouts/interlinear_luke_{start_chapter}_{end_chapter}.json"
+            chapter_desc = f"chapters {start_chapter}-{end_chapter}"
+        else:
+            input_file = "textcreation/texts/interlinearouts/interlinear_luke.json"
+            chapter_desc = "all chapters"
+
+        print(f"GOSPEL OF LUKE MODE: Processing {chapter_desc}")
+
+        # Process Gospel of Luke with verse mode enabled
+        # Uses template with translation display option
+        write_html_interlinear(
+            input_file,
+            "textcreation/texts/templates/grammar_with_translation.html",
+            "app/templates/texts/",
+            "luke",
+            "Gospel of Luke",
+            "Gospel of Luke in Koine Greek",
+            KoineGreek(),
+            starting_page=start_chapter if start_chapter else 1,
+            verse_mode=True,  # Enable chapter/verse structure (one chapter per page)
+            use_unified=True  # Use unified processor to preserve morphGNT parsing
+        )
+        print("✓ Gospel of Luke processing complete!")
+        print("  Each chapter is a separate page: luke_1.html, luke_2.html, etc.")
+        print("  Check app/templates/texts/luke/ for output files")
     elif len(sys.argv) > 1 and sys.argv[1] == "--tractatus":
         print("TRACTATUS MODE: Processing Tractatus Logico-Philosophicus with proposition structure")
         from languages.german import German
@@ -2180,6 +2431,101 @@ if __name__ == "__main__":
             json_path="textcreation/texts/interlinearouts/interlinear_periodictable.json",
             html_dir="app/templates/texts/periodictable/",
             text_name="periodictable",
+            starting_page=1
+        )
+
+    elif len(sys.argv) > 1 and sys.argv[1] == "--hazan":
+        print("HAZAN MODE: Processing L'Invention de Paris (Eric Hazan)")
+        print("Using chapter-based page breaks from source text")
+        from languages.french import French
+
+        write_html_interlinear(
+            "textcreation/texts/interlinearouts/interlinear_hazan.json",
+            "textcreation/texts/templates/infernotemplate.html",
+            "app/templates/texts/",
+            "hazan",
+            "L'Invention de Paris",
+            "L'Invention de Paris by Eric Hazan",
+            French(),
+            starting_page=1,
+            pagebreak=999999,  # Very high - page breaks triggered by chapter field
+            verse_mode=True,  # Use chapter field for page breaks (one chapter per page)
+            use_unified=True  # CRITICAL: Use unified processor
+        )
+        print("✓ Hazan processing complete!")
+        print("  Each section is a separate page: hazan_1.html, hazan_2.html, etc.")
+        print("  Check app/templates/texts/hazan/ for output files")
+
+        # Run automatic verification
+        run_automatic_verification(
+            json_path="textcreation/texts/interlinearouts/interlinear_hazan.json",
+            html_dir="app/templates/texts/hazan/",
+            text_name="hazan",
+            starting_page=1
+        )
+
+    elif len(sys.argv) > 1 and sys.argv[1] == "--proust":
+        print("PROUST MODE: Processing Swann's Way with two-column layout")
+        print("Using paragraph-based page breaks (every ~25 paragraphs)")
+
+        # Create output directory if it doesn't exist
+        os.makedirs("app/templates/texts/proust/", exist_ok=True)
+        os.makedirs("app/templates/texts/proust/sentence_stores/", exist_ok=True)
+
+        write_html_interlinear(
+            "textcreation/texts/interlinearouts/interlinear_proust1.json",
+            "textcreation/texts/templates/prousttemplate.html",
+            "app/templates/texts/",
+            "proust",
+            "Swann's Way - Combray",
+            "In Search of Lost Time by Marcel Proust",
+            French(),
+            starting_page=1,
+            pagebreak=25,  # ~25 paragraphs per page (Proust's paragraphs are long)
+            use_unified=True  # CRITICAL: Use unified processor for French
+        )
+        print("✓ Proust processing complete!")
+        print("  Pages are divided by paragraph count (~25 per page)")
+        print("  Check app/templates/texts/proust/ for output files")
+
+        # Run automatic verification
+        run_automatic_verification(
+            json_path="textcreation/texts/interlinearouts/interlinear_proust1.json",
+            html_dir="app/templates/texts/proust/",
+            text_name="proust",
+            starting_page=1
+        )
+
+    elif len(sys.argv) > 1 and sys.argv[1] == "--perec":
+        print("PEREC MODE: Processing Tentative d'épuisement d'un lieu parisien")
+        print("Using chapter markers for page breaks (sections I, II, III, etc.)")
+
+        # Create output directory if it doesn't exist
+        os.makedirs("app/templates/texts/perec/", exist_ok=True)
+        os.makedirs("app/templates/texts/perec/sentence_stores/", exist_ok=True)
+
+        write_html_interlinear(
+            "textcreation/texts/interlinearouts/interlinear_perec.json",
+            "textcreation/texts/templates/prousttemplate.html",  # Reuse Proust template for French
+            "app/templates/texts/",
+            "perec",
+            "Tentative d'épuisement d'un lieu parisien",
+            "An Attempt at Exhausting a Place in Paris by Georges Perec",
+            French(),
+            starting_page=1,
+            pagebreak=999999,  # High - page breaks triggered by chapter markers
+            verse_mode=True,   # Use chapter field for page breaks
+            use_unified=True   # CRITICAL: Use unified processor for French
+        )
+        print("✓ Perec processing complete!")
+        print("  Each section is a separate page: perec_1.html, perec_2.html, etc.")
+        print("  Check app/templates/texts/perec/ for output files")
+
+        # Run automatic verification
+        run_automatic_verification(
+            json_path="textcreation/texts/interlinearouts/interlinear_perec.json",
+            html_dir="app/templates/texts/perec/",
+            text_name="perec",
             starting_page=1
         )
 

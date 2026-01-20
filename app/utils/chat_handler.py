@@ -64,5 +64,9 @@ prompt_dict = {
     'grandesertao': 'ChatGrandeSertao',
     'tangpoems': 'ChatTangPoems',
     'melancholy': 'ChatMelancholy',
-    'tractatus': 'ChatTractatus'
+    'tractatus': 'ChatTractatus',
+    'perec': 'ChatPerec',
+    'matthew': 'ChatNT',
+    'mark': 'ChatNT',
+    'luke': 'ChatNT'
 }
