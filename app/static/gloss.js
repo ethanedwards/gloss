@@ -75,22 +75,24 @@ function tutorRequest(prompt) {
     });
 }
 
-document.getElementById('chatForm').addEventListener('submit', function (e) {
-    e.preventDefault(); // Prevents form from refreshing the page
-    const studentText = document.getElementById('studentInput').value;
-    
-    if (studentText.trim() !== "") {
-        addChatMessage('student', studentText);
-        generateTutorResponse(studentText)
-            .then(() => {
-                document.getElementById('studentInput').value = ''; // Reset input field
-            })
-            .catch(error => {
-                console.error('Error generating tutor response:', error);
-                // Handle the error appropriately (e.g., display an error message to the user)
-            });
-    }
-});
+if (document.getElementById('chatForm')) {
+    document.getElementById('chatForm').addEventListener('submit', function (e) {
+        e.preventDefault(); // Prevents form from refreshing the page
+        const studentText = document.getElementById('studentInput').value;
+
+        if (studentText.trim() !== "") {
+            addChatMessage('student', studentText);
+            generateTutorResponse(studentText)
+                .then(() => {
+                    document.getElementById('studentInput').value = ''; // Reset input field
+                })
+                .catch(error => {
+                    console.error('Error generating tutor response:', error);
+                    // Handle the error appropriately (e.g., display an error message to the user)
+                });
+        }
+    });
+}
 
 function addChatMessage(sender, text, append = false) {
     const chatInterface = document.getElementById('chatInterface');
@@ -228,13 +230,18 @@ document.addEventListener('keydown', function(event) {
 document.addEventListener('DOMContentLoaded', (event) => {
     // Initialize text configuration from meta tags
     initializeTextConfig();
-    
+
     // Add a single event listener to the interlinear container
-    const container = document.querySelector('.interlinear-container');
-    
+    // Try multiple possible container classes
+    const container = document.querySelector('.interlinear-container') ||
+                     document.querySelector('.ff6-interlinear') ||
+                     document.querySelector('[class*="interlinear"]');
+
     // Handle clicks/touches
-    container.addEventListener('click', handleWordInteraction);
-    container.addEventListener('touchstart', handleWordInteraction);
+    if (container) {
+        container.addEventListener('click', handleWordInteraction);
+        container.addEventListener('touchstart', handleWordInteraction);
+    }
     
     // Add IDs to all words and apply configuration
     const words = document.querySelectorAll('.word');
@@ -298,9 +305,11 @@ function handleWordInteraction(event) {
     // Always handle gloss
     const gloss = wordElement.querySelector('.gloss');
     if (gloss) {
-        gloss.classList.toggle('permanent-gloss');
-        if (gloss.classList.contains('hidden-gloss')) {
-            gloss.classList.remove('hidden-gloss');
+        gloss.classList.toggle('hidden-gloss');
+        if (!gloss.classList.contains('hidden-gloss')) {
+            gloss.classList.add('permanent-gloss');
+        } else {
+            gloss.classList.remove('permanent-gloss');
         }
     }
     
@@ -354,7 +363,10 @@ const longPressManager = {
     touchDuration: 500,
     
     init() {
-        const container = document.querySelector('.interlinear-container');
+        const container = document.querySelector('.interlinear-container') ||
+                         document.querySelector('.ff6-interlinear') ||
+                         document.querySelector('[class*="interlinear"]');
+        if (!container) return;
         container.addEventListener('touchstart', this.handleTouchStart.bind(this));
         container.addEventListener('touchend', this.handleTouchEnd.bind(this));
         container.addEventListener('touchmove', this.handleTouchEnd.bind(this));
@@ -389,13 +401,17 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Prevent the chat interface from losing focus when clicked
-document.getElementById('chatInterface').addEventListener('mousedown', function(event) {
-    event.preventDefault();
-});
+if (document.getElementById('chatInterface')) {
+    document.getElementById('chatInterface').addEventListener('mousedown', function(event) {
+        event.preventDefault();
+    });
+}
 
-document.getElementById('studentInput').addEventListener('mousedown', function(event) {
-    event.target.focus();
-});
+if (document.getElementById('studentInput')) {
+    document.getElementById('studentInput').addEventListener('mousedown', function(event) {
+        event.target.focus();
+    });
+}
 
 function highlightText(){
     var highlightedText = window.getSelection();
@@ -636,25 +652,29 @@ function toggleGloss() {
     }
 }
 
-document.getElementById('toggleGlossButton').addEventListener('click', function() {
-    toggleGloss();
-});
+if (document.getElementById('toggleGlossButton')) {
+    document.getElementById('toggleGlossButton').addEventListener('click', function() {
+        toggleGloss();
+    });
+}
 
 function adjustTextareaHeight(textarea) {
     textarea.style.height = 'auto';
     textarea.style.height = textarea.scrollHeight + 'px';
 }
 
-document.getElementById('studentInput').addEventListener('input', function() {
-    adjustTextareaHeight(this);
-});
+if (document.getElementById('studentInput')) {
+    document.getElementById('studentInput').addEventListener('input', function() {
+        adjustTextareaHeight(this);
+    });
 
-document.getElementById('studentInput').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        document.getElementById('chatForm').dispatchEvent(new Event('submit'));
-    }
-});
+    document.getElementById('studentInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            document.getElementById('chatForm').dispatchEvent(new Event('submit'));
+        }
+    });
+}
 
 
 function handleLongPress(element, callback) {
@@ -714,70 +734,9 @@ document.addEventListener('DOMContentLoaded', (event) => {
     
         initializeNavigation();
 
-
-
-
+    // Handle long press for word selection (text highlighting for chat context)
     const words = document.querySelectorAll('.word');
-
     words.forEach(word => {
-        word.addEventListener('click', function() {
-            const gloss = this.querySelector('.gloss');
-            if (gloss && gloss.classList.contains('hidden-gloss')) {
-                gloss.classList.remove('hidden-gloss');
-            }
-            
-            // Handle configurable elements
-            if (textConfig.showPos) {
-                const pos = this.querySelector('.pos.config-show');
-                if (pos && pos.classList.contains('hidden-element')) {
-                    pos.classList.remove('hidden-element');
-                }
-            }
-            
-            if (textConfig.showDictionary) {
-                const dictionary = this.querySelector('.dictionary.config-show');
-                if (dictionary && dictionary.classList.contains('hidden-element')) {
-                    dictionary.classList.remove('hidden-element');
-                }
-            }
-            
-            if (textConfig.showReading) {
-                const reading = this.querySelector('.reading.config-show');
-                if (reading && reading.classList.contains('hidden-element')) {
-                    reading.classList.remove('hidden-element');
-                }
-            }
-        });
-
-        word.addEventListener('touchstart', function() {
-            const gloss = this.querySelector('.gloss');
-            if (gloss && gloss.classList.contains('hidden-gloss')) {
-                gloss.classList.remove('hidden-gloss');
-            }
-            
-            // Handle configurable elements
-            if (textConfig.showPos) {
-                const pos = this.querySelector('.pos.config-show');
-                if (pos && pos.classList.contains('hidden-element')) {
-                    pos.classList.remove('hidden-element');
-                }
-            }
-            
-            if (textConfig.showDictionary) {
-                const dictionary = this.querySelector('.dictionary.config-show');
-                if (dictionary && dictionary.classList.contains('hidden-element')) {
-                    dictionary.classList.remove('hidden-element');
-                }
-            }
-            
-            if (textConfig.showReading) {
-                const reading = this.querySelector('.reading.config-show');
-                if (reading && reading.classList.contains('hidden-element')) {
-                    reading.classList.remove('hidden-element');
-                }
-            }
-        });
-
         handleLongPress(word, function() {
             let range = document.createRange();
             range.selectNodeContents(word);

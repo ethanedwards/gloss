@@ -58,6 +58,75 @@ def signal_handler(signum, frame):
 # Set up signal handler
 signal.signal(signal.SIGINT, signal_handler)
 
+def is_non_space_delimited(text):
+    """
+    Detect if text is primarily in a non-space-delimited language (Japanese, Chinese, etc.)
+    These languages don't use spaces between words, so word boundary checks don't apply.
+    """
+    if not text:
+        return False
+
+    # Count characters in CJK ranges
+    cjk_count = 0
+    total_alpha = 0
+    for char in text:
+        code = ord(char)
+        # CJK Unified Ideographs, Hiragana, Katakana, CJK symbols
+        if (0x4E00 <= code <= 0x9FFF or  # CJK Unified Ideographs
+            0x3040 <= code <= 0x309F or  # Hiragana
+            0x30A0 <= code <= 0x30FF or  # Katakana
+            0xFF66 <= code <= 0xFF9F or  # Halfwidth Katakana
+            0x3400 <= code <= 0x4DBF):   # CJK Extension A
+            cjk_count += 1
+            total_alpha += 1
+        elif char.isalpha():
+            total_alpha += 1
+
+    # If more than 30% of alphabetic chars are CJK, treat as non-space-delimited
+    return total_alpha > 0 and (cjk_count / total_alpha) > 0.3
+
+
+def is_special_entry(source):
+    """
+    Detect special entries that don't need full interlinear processing:
+    - Onomatopoeia/sound effects (グゴゴゴ, ドドド, ザー, etc.)
+    - Ellipsis-only entries (「……, ……, etc.)
+    - Very short punctuation-only entries
+    """
+    if not source:
+        return True
+
+    # Strip whitespace and common quote marks
+    clean = source.strip().lstrip('「').rstrip('」').strip()
+
+    # Empty or ellipsis-only
+    if not clean or clean in ('…', '……', '………', '...', '....'):
+        return True
+
+    # Very short (1-2 chars) and mostly punctuation
+    if len(clean) <= 2:
+        punct_count = sum(1 for c in clean if not c.isalnum())
+        if punct_count >= len(clean) - 1:
+            return True
+
+    # Japanese onomatopoeia patterns:
+    # - Repeated katakana (グゴゴゴ, ドドド, ザザザ)
+    # - Repeated with ellipsis (グゴゴゴゴ……)
+    import re
+    # Remove trailing ellipsis/punctuation for pattern check
+    text_only = re.sub(r'[…。、！？\.\!\?]+$', '', clean)
+
+    # Check for repeated katakana pattern (same char 3+ times or 2-char pattern repeated)
+    if len(text_only) >= 3:
+        # All katakana
+        if all(0x30A0 <= ord(c) <= 0x30FF or c in 'ー' for c in text_only):
+            # Check for repetition
+            if len(set(text_only.replace('ー', ''))) <= 2:  # Only 1-2 unique chars
+                return True
+
+    return False
+
+
 def verify_interlinear_quality(source, interlinear):
     """
     Verifies that the interlinear matches the source text.
@@ -69,9 +138,21 @@ def verify_interlinear_quality(source, interlinear):
     - length_ratio < 0.65: Detects LLM output truncation (most common failure mode)
       When the LLM hits output token limits, output is cut mid-word. This results
       in interlinear covering only ~40-60% of the source text.
-    - First words match: Detects wrong-passage errors
+    - First words match: Detects wrong-passage errors (skipped for CJK languages)
     - Structural integrity: All entries should be [source, gloss] pairs
+
+    Note: For non-space-delimited languages (Japanese, Chinese), word boundary
+    checks are skipped since the LLM is expected to segment text into words.
     """
+    # Check for special entries (onomatopoeia, ellipsis-only, etc.)
+    if is_special_entry(source):
+        # These entries are valid even with minimal/no interlinear
+        if interlinear and len(interlinear) >= 1:
+            return {'valid': True, 'reason': 'OK (special entry)', 'confidence': 1.0}
+        # Allow empty interlinear for truly empty/punctuation-only source
+        if not source or not source.strip().lstrip('「').rstrip('」').strip():
+            return {'valid': True, 'reason': 'OK (empty/punctuation)', 'confidence': 1.0}
+
     if not interlinear:
         return {'valid': False, 'reason': 'Empty interlinear', 'confidence': 0.0}
 
@@ -126,11 +207,15 @@ def verify_interlinear_quality(source, interlinear):
             'confidence': 0.3
         }
 
+    # Detect if this is a non-space-delimited language
+    is_cjk = is_non_space_delimited(source_clean)
+
     # Check 2: First words match (semantic check)
+    # Skip for CJK languages since they don't have space-delimited words
     source_words = source_clean.split()[:3]
     interlinear_first_words = [w[0] for w in interlinear if w][:3]
 
-    if len(source_words) >= 2 and len(interlinear_first_words) >= 2:
+    if not is_cjk and len(source_words) >= 2 and len(interlinear_first_words) >= 2:
         # Normalize for comparison (remove accents, punctuation, case, whitespace)
         import unicodedata
 
@@ -180,14 +265,18 @@ def verify_interlinear_quality(source, interlinear):
 
     # Check 4: Word boundary alignment - detect multi-word tokens that won't align
     # This catches cases like LLM producing ["J'", "avais oublié"] when source has "J'avais oublié"
+    # SKIP for CJK languages - they don't have space-delimited words, LLM segments correctly
     import unicodedata
     def normalize_for_match(text):
-        """Remove accents and convert to lowercase for matching."""
+        """Remove accents, punctuation/quotes, and convert to lowercase for matching."""
         nfd = unicodedata.normalize('NFD', text)
-        return ''.join(c for c in nfd if unicodedata.category(c) != 'Mn').lower()
+        # Strip combining marks (Mn) AND punctuation categories (P*) AND symbols (S*)
+        # This handles Unicode curly quotes, dashes, etc. that differ between source and LLM output
+        return ''.join(c for c in nfd if unicodedata.category(c) not in ('Mn',) and c.isalnum()).lower()
 
     # Check if first interlinear token aligns with source word boundaries
-    if interlinear and len(interlinear) > 0:
+    # Skip this check for CJK languages since word boundaries are determined by LLM
+    if not is_cjk and interlinear and len(interlinear) > 0:
         first_inter_word = interlinear[0][0] if interlinear[0] else ''
         first_inter_normalized = normalize_for_match(first_inter_word).strip()
 
@@ -222,6 +311,31 @@ def verify_interlinear_quality(source, interlinear):
                             'reason': f'Word boundary mismatch: source starts "{first_source_word}" but interlinear starts "{first_inter_word}"',
                             'confidence': 0.4
                         }
+
+    # For CJK languages, do a simpler character coverage check
+    if is_cjk:
+        # Verify that interlinear text contains the same characters as source (ignoring spaces)
+        # Strip Japanese dialogue markers (「」) from both - they may be present or absent inconsistently
+        def strip_dialogue_markers(text):
+            return text.replace('「', '').replace('」', '').replace('『', '').replace('』', '')
+
+        source_for_compare = strip_dialogue_markers(source_clean)
+        inter_for_compare = strip_dialogue_markers(interlinear_text)
+        source_chars_only = ''.join(c for c in source_for_compare if not c.isspace())
+        inter_chars_only = ''.join(c for c in inter_for_compare if not c.isspace())
+
+        # Check that interlinear starts with same characters as source
+        check_len = min(10, len(source_chars_only), len(inter_chars_only))
+        if check_len >= 3:
+            if source_chars_only[:check_len] != inter_chars_only[:check_len]:
+                return {
+                    'valid': False,
+                    'reason': f'CJK text mismatch: source starts "{source_chars_only[:15]}" but interlinear starts "{inter_chars_only[:15]}"',
+                    'confidence': 0.3
+                }
+
+        # All CJK checks passed
+        return {'valid': True, 'reason': 'OK (CJK)', 'confidence': 1.0}
 
     # Check 5: Detect problematic multi-word tokens
     # If any interlinear token contains spaces and the corresponding source position
@@ -270,6 +384,66 @@ def parseInterlinear(gptoutput):
         outputlist.append(wordlist)
 
     return outputlist
+
+import re
+
+def extract_grammar_from_glosses(interlist):
+    """Extract [grammar tag] and compound {a+b} notation from glosses.
+
+    Handles two formats:
+    1. Simple: | word*gloss [tag] |
+    2. Compound: | {stem1+stem2}*{gloss1+gloss2} [tag] |
+
+    For compounds, the word is stored hyphenated (stem1-stem2) and compound
+    info is stored in parseinfo index 4 as a dict with 'parts' and 'glosses'.
+
+    Returns: (cleaned_interlist, parseinfo)
+    """
+    tag_pattern = re.compile(r'\s*\[([^\]]+)\]\s*$')
+    compound_pattern = re.compile(r'^\{([^}]+)\}$')
+    cleaned = []
+    parseinfo = []
+    for pair in interlist:
+        word = pair[0] if len(pair) > 0 else ''
+        gloss = pair[1] if len(pair) > 1 else ''
+
+        # Extract grammar tag from gloss
+        tag_match = tag_pattern.search(gloss)
+        if tag_match:
+            tag = tag_match.group(1)
+            clean_gloss = gloss[:tag_match.start()].strip()
+        else:
+            tag = ''
+            clean_gloss = gloss
+
+        # Check for compound notation {stem1+stem2}
+        word_compound = compound_pattern.match(word)
+        gloss_compound = compound_pattern.match(clean_gloss)
+
+        if word_compound:
+            # Compound word: extract parts
+            word_parts = word_compound.group(1).split('+')
+            gloss_parts = gloss_compound.group(1).split('+') if gloss_compound else [clean_gloss]
+
+            # Store hyphenated form in interlinear
+            hyphenated_word = '-'.join(p.strip() for p in word_parts)
+            hyphenated_gloss = '-'.join(p.strip() for p in gloss_parts)
+            cleaned.append([hyphenated_word, hyphenated_gloss])
+
+            # Build parseinfo with compound data at index 4
+            compound_data = {
+                'parts': [p.strip() for p in word_parts],
+                'glosses': [p.strip() for p in gloss_parts]
+            }
+            grammar_str = '{Grammar: [' + tag + ']}' if tag else '{}'
+            parseinfo.append([hyphenated_word.lower(), '', '', grammar_str, compound_data])
+        else:
+            # Simple word
+            cleaned.append([word, clean_gloss])
+            grammar_str = '{Grammar: [' + tag + ']}' if tag else '{}'
+            parseinfo.append([word.lower(), '', '', grammar_str])
+
+    return cleaned, parseinfo
 
 def parseInterlinearWithTranslation(gptoutput):
     outputlist = []
@@ -370,24 +544,36 @@ async def getTranslations(source_list, translation_list, llm, userprompt, system
             if source.strip():
                 # Try to format with various language parameter combinations
                 try:
-                    # Try French solo format (only french parameter)
-                    prompt = userprompt.format(french=source.strip())
+                    # Try Japanese bilingual format (FF6)
+                    prompt = userprompt.format(japanese=source.strip(), english=translation.strip())
                 except KeyError:
                     try:
-                        # Try French bilingual format
-                        prompt = userprompt.format(french=source.strip(), english=translation.strip())
+                        # Try French solo format (only french parameter)
+                        prompt = userprompt.format(french=source.strip())
                     except KeyError:
                         try:
-                            # Try Italian bilingual format
-                            prompt = userprompt.format(italian=source.strip(), english=translation.strip())
+                            # Try French bilingual format
+                            prompt = userprompt.format(french=source.strip(), english=translation.strip())
                         except KeyError:
                             try:
-                                # Try other language combinations
-                                prompt = userprompt.format(source=source.strip(), translation=translation.strip())
+                                # Try Italian bilingual format
+                                prompt = userprompt.format(italian=source.strip(), english=translation.strip())
                             except KeyError:
-                                # Fallback: just use the source
-                                print(f"Warning: Could not format prompt for entry {i}, using source as-is")
-                                prompt = source.strip()
+                                try:
+                                    # Try Pali bilingual format
+                                    prompt = userprompt.format(pali=source.strip(), english=translation.strip())
+                                except KeyError:
+                                    try:
+                                        # Try Greek bilingual format
+                                        prompt = userprompt.format(greek=source.strip(), english=translation.strip())
+                                    except KeyError:
+                                        try:
+                                            # Try other language combinations
+                                            prompt = userprompt.format(source=source.strip(), translation=translation.strip())
+                                        except KeyError:
+                                            # Fallback: just use the source
+                                            print(f"Warning: Could not format prompt for entry {i}, using source as-is")
+                                            prompt = source.strip()
 
                 messages = llm.format_messages(userprompt=prompt, systemprompt=systemprompt)
                 async_request = llm.get_completion_async(messages=messages, timeout_seconds=REQUEST_TIMEOUT_SECONDS)
@@ -448,6 +634,9 @@ async def getTranslations(source_list, translation_list, llm, userprompt, system
                     else:
                         # Only save if verification passed
                         parseinfo = language.parse_sent(source)
+                        # If language parser returned empty, try extracting grammar from LLM glosses
+                        if not parseinfo:
+                            interlist, parseinfo = extract_grammar_from_glosses(interlist)
                         outputlist[idx] = {
                             "source": source,
                             "translation": translation,
@@ -490,18 +679,21 @@ async def getTranslations(source_list, translation_list, llm, userprompt, system
 
                             # Format prompt with flexible language parameter handling
                             try:
-                                prompt = userprompt.format(french=source.strip())
+                                prompt = userprompt.format(japanese=source.strip(), english=translation.strip())
                             except KeyError:
                                 try:
-                                    prompt = userprompt.format(french=source.strip(), english=translation.strip())
+                                    prompt = userprompt.format(french=source.strip())
                                 except KeyError:
                                     try:
-                                        prompt = userprompt.format(italian=source.strip(), english=translation.strip())
+                                        prompt = userprompt.format(french=source.strip(), english=translation.strip())
                                     except KeyError:
                                         try:
-                                            prompt = userprompt.format(source=source.strip(), translation=translation.strip())
+                                            prompt = userprompt.format(italian=source.strip(), english=translation.strip())
                                         except KeyError:
-                                            prompt = source.strip()
+                                            try:
+                                                prompt = userprompt.format(source=source.strip(), translation=translation.strip())
+                                            except KeyError:
+                                                prompt = source.strip()
 
                             prompt_with_addendum = prompt + retry_addendum_formatted
 
@@ -530,6 +722,8 @@ async def getTranslations(source_list, translation_list, llm, userprompt, system
                             if verification['valid']:
                                 print(f"    Entry {idx}: ✓ Passed on retry")
                                 parseinfo = language.parse_sent(source)
+                                if not parseinfo:
+                                    interlist, parseinfo = extract_grammar_from_glosses(interlist)
                                 outputlist[idx] = {
                                     "source": source,
                                     "translation": translation,
@@ -1768,6 +1962,426 @@ if __name__ == '__main__':
             print("\n✅ Gospel of Luke processing completed successfully!")
             print("📁 Results saved to: " + str(output_file))
             print("🏛️ Ready for use in the Gloss interlinear reader!")
+        else:
+            print("\n⚠️  Processing was interrupted but progress has been saved.")
+            print("📁 Partial results available at: " + str(output_file))
+
+    # Check for FF6 mode
+    elif len(sys.argv) > 1 and sys.argv[1] == "--ff6":
+        print("="*60)
+        print("Final Fantasy 6 (Japanese) Processing")
+        print("="*60)
+
+        # Load yml file for prompts
+        lib = promptlibrary("textcreation/promptlibrary.yml")
+        userprompt = lib.find_prompt_by_title("InterlinearUserFF6")
+        systemprompt = lib.find_prompt_by_title("InterlinearSystemFF6")
+
+        llm = claude()
+
+        # Load FF6 aligned data (preprocessed with speakers)
+        aligned_file = 'textcreation/texts/aligned/ff6/ff6_aligned.json'
+        print(f"Loading aligned data from: {aligned_file}")
+
+        with open(aligned_file, 'r', encoding='utf-8') as f:
+            ff6_data = json.load(f)
+
+        # Prepare source, translation, and speaker lists
+        source_list = [entry["source"] for entry in ff6_data]
+        translation_list = [entry["translation"] for entry in ff6_data]
+        speaker_list = [entry.get("speaker") for entry in ff6_data]
+
+        # Configuration for batch processing
+        output_file = "textcreation/texts/interlinearouts/interlinear_ff6.json"
+        batch_size = 5  # Process 5 dialogue lines at a time
+
+        # Automatically detect resume point from existing file
+        resume_from = find_resume_point(output_file)
+
+        print("Starting Final Fantasy 6 translation processing:")
+        print(f"- Total entries: {len(source_list)}")
+        print(f"- Batch size: {batch_size}")
+        print(f"- Output file: {output_file}")
+        print(f"- Resume from index: {resume_from}")
+        print("- Language: Japanese (FF6)")
+        print("\nPress Ctrl+C to interrupt gracefully and save progress\n")
+
+        # Lightweight Japanese for batch runs
+        class JapaneseLight(Language):
+            """Lightweight Japanese for batch runs."""
+            def __init__(self):
+                self.name = "japanese"
+
+            def get_grammar(self, word: str, sent: str, ind: int):
+                return ""
+
+            def get_definition(self, word: str):
+                return ""
+
+            def parse_sent(self, sent: str):
+                # Skip heavy parsing during batch runs
+                return []
+
+        async def process_ff6():
+            translations = await getTranslations(
+                source_list,
+                translation_list,
+                llm,
+                userprompt,
+                systemprompt,
+                language=JapaneseLight(),
+                speaker_list=speaker_list,
+                output_file=output_file,
+                batch_size=batch_size,
+                resume_from=resume_from
+            )
+
+            # Ensure speakers are preserved in output
+            for i, entry in enumerate(ff6_data):
+                if i < len(translations) and translations[i] is not None:
+                    translations[i]['speaker'] = entry.get('speaker')
+
+            # Save final output
+            with open(output_file, 'w', encoding='utf8') as f:
+                json.dump(translations, f, ensure_ascii=False, indent=2)
+
+            return translations
+
+        translations = asyncio.run(process_ff6())
+
+        # Final message
+        if not interrupted:
+            print("\n✅ Final Fantasy 6 processing completed successfully!")
+            print("📁 Results saved to: " + str(output_file))
+            print("🎮 Ready for use in the Gloss interlinear reader!")
+        else:
+            print("\n⚠️  Processing was interrupted but progress has been saved.")
+            print("📁 Partial results available at: " + str(output_file))
+
+    # Check for Pierre Menard mode
+    elif len(sys.argv) > 1 and sys.argv[1] == "--pierremenard":
+        print("="*60)
+        print("Pierre Menard, autor del Quijote (Spanish with English Translation)")
+        print("="*60)
+
+        # Load yml file for prompts - use Spanish prompts
+        lib = promptlibrary("textcreation/promptlibrary.yml")
+        userprompt = lib.find_prompt_by_title("InterlinearUserSpanish")
+        systemprompt = lib.find_prompt_by_title("InterlinearSystemSpanish")
+
+        llm = claude()
+
+        # Load Pierre Menard aligned data
+        aligned_file = 'textcreation/texts/aligned/pierremenard.json'
+        print(f"Loading aligned data from: {aligned_file}")
+
+        with open(aligned_file, 'r', encoding='utf-8') as f:
+            menard_data = json.load(f)
+
+        # Prepare source and translation lists
+        source_list = [entry["source"] for entry in menard_data]
+        translation_list = [entry["translation"] for entry in menard_data]
+
+        # Configuration for batch processing
+        output_file = "textcreation/texts/interlinearouts/interlinear_pierremenard.json"
+        batch_size = 10
+
+        # Automatically detect resume point from existing file
+        resume_from = find_resume_point(output_file)
+
+        print("Starting Pierre Menard translation processing:")
+        print(f"- Total entries: {len(source_list)}")
+        print(f"- Batch size: {batch_size}")
+        print(f"- Output file: {output_file}")
+        print(f"- Resume from index: {resume_from}")
+        print("- Language: Spanish (Borges - Ficciones)")
+        print("\nPress Ctrl+C to interrupt gracefully and save progress\n")
+
+        # Lightweight Spanish for batch processing
+        class SpanishLight(Language):
+            """Lightweight Spanish for batch runs."""
+            def __init__(self):
+                self.name = "spanish"
+
+            def get_grammar(self, word: str, sent: str, ind: int):
+                return ""
+
+            def get_definition(self, word: str):
+                return ""
+
+            def parse_sent(self, sent: str):
+                # Skip heavy parsing during batch runs
+                return []
+
+        # Process Pierre Menard
+        async def process_pierremenard():
+            translations = await getTranslations(
+                source_list,
+                translation_list,
+                llm,
+                userprompt,
+                systemprompt,
+                language=SpanishLight(),
+                speaker_list=[],
+                output_file=output_file,
+                batch_size=batch_size,
+                resume_from=resume_from
+            )
+
+            # Save final output
+            with open(output_file, 'w', encoding='utf8') as f:
+                json.dump(translations, f, ensure_ascii=False, indent=2)
+
+            return translations
+
+        translations = asyncio.run(process_pierremenard())
+
+        # Final message
+        if not interrupted:
+            print("\n✅ Pierre Menard processing completed successfully!")
+            print("📁 Results saved to: " + str(output_file))
+            print("📚 Ready for use in the Gloss interlinear reader!")
+        else:
+            print("\n⚠️  Processing was interrupted but progress has been saved.")
+            print("📁 Partial results available at: " + str(output_file))
+
+    elif len(sys.argv) > 1 and sys.argv[1] == "--pierremenard":
+        print("="*60)
+        print("Pierre Menard, autor del Quijote (Spanish with English Translation)")
+        print("="*60)
+
+        # Load yml file for prompts - use bilingual Spanish prompts
+        lib = promptlibrary("textcreation/promptlibrary.yml")
+        userprompt = lib.find_prompt_by_title("InterlinearUserSpanish")
+        systemprompt = lib.find_prompt_by_title("InterlinearSystemSpanish")
+
+        llm = claude()
+
+        # Load aligned data
+        aligned_file = 'textcreation/texts/aligned/pierremenard.json'
+        print(f"Loading aligned data from: {aligned_file}")
+
+        with open(aligned_file, 'r', encoding='utf-8') as f:
+            menard_data = json.load(f)
+
+        # Prepare source and translation lists
+        source_list = [entry["source"] for entry in menard_data]
+        translation_list = [entry["translation"] for entry in menard_data]
+
+        # Configuration for batch processing
+        output_file = "textcreation/texts/interlinearouts/interlinear_pierremenard.json"
+        batch_size = 10
+
+        # Automatically detect resume point from existing file
+        resume_from = find_resume_point(output_file)
+
+        print("Starting Pierre Menard processing:")
+        print(f"- Total entries: {len(source_list)}")
+        print(f"- Batch size: {batch_size}")
+        print(f"- Output file: {output_file}")
+        print(f"- Resume from index: {resume_from}")
+        print("- Language: Spanish (Borges - Ficciones)")
+        print("\nPress Ctrl+C to interrupt gracefully and save progress\n")
+
+        # Lightweight Spanish for batch processing
+        class SpanishLight(Language):
+            """Lightweight Spanish for batch runs."""
+            def __init__(self):
+                self.name = "spanish"
+
+            def get_grammar(self, word: str, sent: str, ind: int):
+                return ""
+
+            def get_definition(self, word: str):
+                return ""
+
+            def parse_sent(self, sent: str):
+                return []
+
+        # Process Pierre Menard
+        async def process_pierremenard():
+            translations = await getTranslations(
+                source_list,
+                translation_list,
+                llm,
+                userprompt,
+                systemprompt,
+                language=SpanishLight(),
+                speaker_list=[],
+                output_file=output_file,
+                batch_size=batch_size,
+                resume_from=resume_from
+            )
+
+            # Save final output
+            with open(output_file, 'w', encoding='utf8') as f:
+                json.dump(translations, f, ensure_ascii=False, indent=2)
+
+            return translations
+
+        translations = asyncio.run(process_pierremenard())
+
+        # Final message
+        if not interrupted:
+            print("\n✅ Pierre Menard processing completed successfully!")
+            print("📁 Results saved to: " + str(output_file))
+            print("🏛️ Ready for use in the Gloss interlinear reader!")
+        else:
+            print("\n⚠️  Processing was interrupted but progress has been saved.")
+            print("📁 Partial results available at: " + str(output_file))
+
+    # MN2 (Sabbāsavasutta) - Pali
+    elif len(sys.argv) > 1 and sys.argv[1] == "--mn2":
+        print("="*60)
+        print("MN 2 Sabbāsavasutta (Pali)")
+        print("="*60)
+
+        lib = promptlibrary("textcreation/promptlibrary.yml")
+        userprompt = lib.find_prompt_by_title("InterlinearUserPali")
+        systemprompt = lib.find_prompt_by_title("InterlinearSystemPali")
+
+        llm = claude()
+
+        # Load aligned data (produced by download_suttacentral.py)
+        aligned_file = 'textcreation/texts/aligned/aligned_mn2.json'
+        print(f"Loading aligned data from: {aligned_file}")
+
+        with open(aligned_file, 'r', encoding='utf-8') as f:
+            mn2_data = json.load(f)
+
+        source_list = [entry["source"] for entry in mn2_data]
+        translation_list = [entry["translation"] for entry in mn2_data]
+        verse_list = [entry.get("verse", "") for entry in mn2_data]
+
+        output_file = "textcreation/texts/interlinearouts/interlinear_mn2.json"
+        batch_size = 10
+
+        resume_from = find_resume_point(output_file)
+
+        print(f"- Total segments: {len(source_list)}")
+        print(f"- Batch size: {batch_size}")
+        print(f"- Output file: {output_file}")
+        print(f"- Resume from index: {resume_from}")
+        print("- Language: Pali (MN 2)")
+        print("\nPress Ctrl+C to interrupt gracefully and save progress\n")
+
+        class PaliLight(Language):
+            """Lightweight Pali for batch runs."""
+            def __init__(self):
+                self.name = "Pali"
+            def get_grammar(self, word, sent, ind):
+                return ""
+            def get_definition(self, word):
+                return ""
+            def parse_sent(self, sent):
+                return []
+
+        async def process_mn2():
+            translations = await getTranslations(
+                source_list,
+                translation_list,
+                llm,
+                userprompt,
+                systemprompt,
+                language=PaliLight(),
+                speaker_list=[],
+                output_file=output_file,
+                batch_size=batch_size,
+                resume_from=resume_from
+            )
+
+            # Add verse/section references to the output
+            for i, verse_ref in enumerate(verse_list):
+                if i < len(translations) and translations[i] is not None and verse_ref:
+                    translations[i]['verse'] = verse_ref
+
+            with open(output_file, 'w', encoding='utf8') as f:
+                json.dump(translations, f, ensure_ascii=False, indent=2)
+
+            return translations
+
+        translations = asyncio.run(process_mn2())
+
+        if not interrupted:
+            print("\n✅ MN 2 processing completed successfully!")
+            print("📁 Results saved to: " + str(output_file))
+        else:
+            print("\n⚠️  Processing was interrupted but progress has been saved.")
+            print("📁 Partial results available at: " + str(output_file))
+
+    elif len(sys.argv) > 1 and sys.argv[1] == "--mn21":
+        print("="*60)
+        print("MN 21 Kakacūpamasutta (Pali)")
+        print("="*60)
+
+        lib = promptlibrary("textcreation/promptlibrary.yml")
+        userprompt = lib.find_prompt_by_title("InterlinearUserPali")
+        systemprompt = lib.find_prompt_by_title("InterlinearSystemPali")
+
+        llm = claude()
+
+        aligned_file = 'textcreation/texts/aligned/aligned_mn21.json'
+        print(f"Loading aligned data from: {aligned_file}")
+
+        with open(aligned_file, 'r', encoding='utf-8') as f:
+            mn21_data = json.load(f)
+
+        source_list = [entry["source"] for entry in mn21_data]
+        translation_list = [entry["translation"] for entry in mn21_data]
+        verse_list = [entry.get("verse", "") for entry in mn21_data]
+
+        output_file = "textcreation/texts/interlinearouts/interlinear_mn21.json"
+        batch_size = 10
+
+        resume_from = find_resume_point(output_file)
+
+        print(f"- Total segments: {len(source_list)}")
+        print(f"- Batch size: {batch_size}")
+        print(f"- Output file: {output_file}")
+        print(f"- Resume from index: {resume_from}")
+        print("- Language: Pali (MN 21)")
+        print("\nPress Ctrl+C to interrupt gracefully and save progress\n")
+
+        class PaliLight21(Language):
+            """Lightweight Pali for batch runs."""
+            def __init__(self):
+                self.name = "Pali"
+            def get_grammar(self, word, sent, ind):
+                return ""
+            def get_definition(self, word):
+                return ""
+            def parse_sent(self, sent):
+                return []
+
+        async def process_mn21():
+            translations = await getTranslations(
+                source_list,
+                translation_list,
+                llm,
+                userprompt,
+                systemprompt,
+                language=PaliLight21(),
+                speaker_list=[],
+                output_file=output_file,
+                batch_size=batch_size,
+                resume_from=resume_from
+            )
+
+            # Add verse/section references to the output
+            for i, verse_ref in enumerate(verse_list):
+                if i < len(translations) and translations[i] is not None and verse_ref:
+                    translations[i]['verse'] = verse_ref
+
+            with open(output_file, 'w', encoding='utf8') as f:
+                json.dump(translations, f, ensure_ascii=False, indent=2)
+
+            return translations
+
+        translations = asyncio.run(process_mn21())
+
+        if not interrupted:
+            print("\n✅ MN 21 processing completed successfully!")
+            print("📁 Results saved to: " + str(output_file))
         else:
             print("\n⚠️  Processing was interrupted but progress has been saved.")
             print("📁 Partial results available at: " + str(output_file))

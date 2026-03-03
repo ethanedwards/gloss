@@ -91,6 +91,11 @@ TEXT_CONFIG = {
         'template_base': 'texts/grandesertao/grandesertao_{}.html',
         'sentence_store': 'texts/grandesertao/sentence_stores/grandesertao_{}.json'
     },
+    'ff6': {
+        'pages': 80,
+        'template_base': 'texts/ff6/ff6_{}.html',
+        'sentence_store': 'texts/ff6/sentence_stores/ff6_{}.json'
+    },
     'tangpoems': {
         'pages': 320,
         'template_base': 'texts/tangpoems/tangpoems_{}.html',
@@ -122,7 +127,7 @@ TEXT_CONFIG = {
         'sentence_store': 'texts/tractatus/sentence_stores/tractatus_{}.json'
     },
     'tractatus_new': {
-        'pages': 3,
+        'pages': 7,
         'template_base': 'texts/tractatus_new/tractatus_{}.html',
         'sentence_store': 'texts/tractatus_new/sentence_stores/tractatus_{}.json'
     },
@@ -145,6 +150,26 @@ TEXT_CONFIG = {
         'pages': 1,
         'template_base': 'texts/rumi_jahan/rumi_jahan_{}.html',
         'sentence_store': 'texts/rumi_jahan/sentence_stores/rumi_jahan_{}.json'
+    },
+    "tahereh": {
+        'pages': 2,
+        'template_base': 'texts/tahereh/tahereh_{}.html',
+        'sentence_store': 'texts/tahereh/sentence_stores/tahereh_{}.json'
+    },
+    "pierremenard": {
+        'pages': 5,
+        'template_base': 'texts/pierremenard/pierremenard_{}.html',
+        'sentence_store': 'texts/pierremenard/sentence_stores/pierremenard_{}.json'
+    },
+    'mn2': {
+        'pages': 2,
+        'template_base': 'texts/mn2/mn2_{}.html',
+        'sentence_store': 'texts/mn2/sentence_stores/mn2_{}.json'
+    },
+    'mn21': {
+        'pages': 3,  # Will be updated after generation
+        'template_base': 'texts/mn21/mn21_{}.html',
+        'sentence_store': 'texts/mn21/sentence_stores/mn21_{}.json'
     }
 
     # Add other texts...

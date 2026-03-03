@@ -28,6 +28,46 @@ ADDITIONAL_PUNCTUATION = '«»„"‹›''""-–—？，！。：；「」《�
 # Combine with standard punctuation
 EXTENDED_PUNCTUATION = string.punctuation + ADDITIONAL_PUNCTUATION
 
+
+def is_special_entry(source):
+    """
+    Detect special entries that don't need full interlinear processing:
+    - Onomatopoeia/sound effects (グゴゴゴ, ドドド, ザー, etc.)
+    - Ellipsis-only entries (「……, ……, etc.)
+    - Very short punctuation-only entries
+    """
+    if not source:
+        return True
+
+    # Strip whitespace and common quote marks
+    clean = source.strip().lstrip('「').rstrip('」').strip()
+
+    # Empty or ellipsis-only
+    if not clean or clean in ('…', '……', '………', '...', '....'):
+        return True
+
+    # Very short (1-2 chars) and mostly punctuation
+    if len(clean) <= 2:
+        punct_count = sum(1 for c in clean if not c.isalnum())
+        if punct_count >= len(clean) - 1:
+            return True
+
+    # Japanese onomatopoeia patterns:
+    # - Repeated katakana (グゴゴゴ, ドドド, ザザザ)
+    # - Repeated with ellipsis (グゴゴゴゴ……)
+    # Remove trailing ellipsis/punctuation for pattern check
+    text_only = re.sub(r'[…。、！？\.\!\?]+$', '', clean)
+
+    # Check for repeated katakana pattern (same char 3+ times or 2-char pattern repeated)
+    if len(text_only) >= 3:
+        # All katakana
+        if all(0x30A0 <= ord(c) <= 0x30FF or c in 'ー' for c in text_only):
+            # Check for repetition - only 1-2 unique chars means it's likely onomatopoeia
+            if len(set(text_only.replace('ー', ''))) <= 2:
+                return True
+
+    return False
+
 # Global tracking for problematic entries during HTML generation
 # This tracks entries that have alignment issues, truncated data, or many unglossed words
 _problematic_entries = []
@@ -210,11 +250,52 @@ def processInterlinear(datalist, language='', pagebreak=10, verse_mode=False, us
     stracker = sentenceTracker()
     sentence_store = sentenceStore()
 
-    current_sentence = datalist[0]['source']
+    # Find first non-None entry for initial sentence
+    current_sentence = ""
+    for e in datalist:
+        if e is not None and e.get('source'):
+            current_sentence = e['source']
+            break
     current_chapter = None
 
     #Loop through each entry with index for error tracking
     for data_entry_idx, entry in enumerate(datalist):
+        # Skip None entries (unprocessed entries in partial datasets)
+        if entry is None:
+            continue
+
+        # Handle context entries (explanatory text, section headers, comments)
+        # These are rendered as styled blocks, not interlinear glosses
+        entry_type = entry.get('type', '')
+        if entry_type in ('section_header', 'context_detail', 'context_comment'):
+            translation = entry.get('translation', '')
+            if translation:
+                # For section headers, force page break if we have significant content already
+                # This ensures section headers appear at the TOP of new pages, not bottom of previous
+                if entry_type == 'section_header' and counter > 20 and runninghtml:
+                    # Save current page and start new one
+                    runninghtmls.append(runninghtml)
+                    sentence_stores.append(sentence_store)
+                    runninghtml = ""
+                    sentence_store = sentenceStore()
+                    counter = 0
+
+                # Close word-group, add context block, reopen word-group for proper block display
+                # This ensures context blocks are on their own lines, not inline with glosses
+                if entry_type == 'section_header':
+                    runninghtml += f'</div><div class="context-section-header">{translation}</div><div class="word-group">'
+                elif entry_type == 'context_detail':
+                    runninghtml += f'</div><div class="context-detail">{translation}</div><div class="word-group">'
+                elif entry_type == 'context_comment':
+                    runninghtml += f'</div><div class="context-comment">{translation}</div><div class="word-group">'
+            continue  # Don't process as interlinear
+
+        # Handle pagebreak markers
+        if entry_type == 'pagebreak':
+            if runninghtml:  # Only if we have content to save
+                counter = pagebreak  # Force immediate page break
+            continue
+
         # Handle verse mode (for biblical texts and philosophical propositions)
         if verse_mode and 'verse' in entry:
             verse_ref = entry['verse']  # e.g., "1:1" for Bible, "1.1" for Tractatus, or "1" for simple chapters
@@ -339,7 +420,8 @@ def processInterlinear(datalist, language='', pagebreak=10, verse_mode=False, us
         sentence_store.sentences.update(store.sentences)
         sentence_store.wordMap.update(store.wordMap)
 
-        # Don't increment counter for individual sentences - only for section breaks
+        # Increment counter for each processed entry (for page break tracking)
+        counter += 1
     runninghtmls.append(runninghtml)
     sentence_stores.append(sentence_store)
 
@@ -1351,15 +1433,26 @@ def processSourceInterlinearUnified(entry, stracker, language, data_entry_idx=No
     speaker = entry['speaker'] if 'speaker' in entry else None
     parsinginfo = entry['parseinfo'] if 'parseinfo' in entry else []
 
-    # Check for entries already marked as failed or with empty/very short interlinear
-    is_failed_entry = entry.get('_failed_verification') or not interlinear or len(interlinear) < 3
+    # Check for entries already marked as failed or with empty interlinear
+    # For short entries (< 20 chars), having 1-2 interlinear items is fine
+    is_failed_entry = entry.get('_failed_verification') or not interlinear
 
-    # Also check coverage ratio for entries that slipped through
-    if interlinear and len(interlinear) >= 3:
+    # Check coverage ratio - actual text coverage is more important than raw count
+    if interlinear and len(interlinear) >= 1:
         interlinear_text = ''.join([w[0] for w in interlinear if w and w[0] != '<br>'])
-        coverage_ratio = len(interlinear_text) / len(text) if len(text) > 0 else 0
-        if coverage_ratio < 0.5 and len(text) > 50:
+        source_clean = text.strip().lstrip('「').rstrip('」')
+        coverage_ratio = len(interlinear_text) / len(source_clean) if len(source_clean) > 0 else 0
+        # Only flag as failed if coverage is low AND source is substantial
+        if coverage_ratio < 0.5 and len(source_clean) > 30:
             is_failed_entry = True
+        elif coverage_ratio >= 0.5:
+            # Good coverage - not a failed entry
+            is_failed_entry = False
+
+    # Don't flag special entries (onomatopoeia, ellipsis, etc.) as failures
+    # These are expected to have minimal or no interlinear data
+    if is_special_entry(text):
+        is_failed_entry = False
 
     if is_failed_entry:
         if data_entry_idx is not None:
@@ -1375,13 +1468,12 @@ def processSourceInterlinearUnified(entry, stracker, language, data_entry_idx=No
             stracker.current_sentence = text
             stracker.increase()
 
-        if speaker:
-            runninghtml = f"""
+        # Always show speaker div (empty if no speaker for visual consistency)
+        speaker_text = speaker if speaker else ""
+        runninghtml = f"""
                         </div>
-                        <div class="speaker">{speaker}</div>
+                        <div class="speaker">{speaker_text}</div>
                         <div class="word-group">"""
-        else:
-            runninghtml = ""
 
         sentence_store = sentenceStore()
         sentence_id = stracker.sentence_id
@@ -1418,19 +1510,27 @@ def processSourceInterlinearUnified(entry, stracker, language, data_entry_idx=No
         stracker.current_sentence = text
         stracker.increase()
 
-    if speaker:
-        runninghtml = f"""
+    # Always show speaker div (empty if no speaker for visual consistency)
+    speaker_text = speaker if speaker else ""
+    runninghtml = f"""
                     </div>
-                    <div class="speaker">{speaker}</div>
+                    <div class="speaker">{speaker_text}</div>
                     <div class="word-group">"""
-    else:
-        runninghtml = ""
 
     sentence_store = sentenceStore()
     sentence_id = stracker.sentence_id
 
     # Step 1: Reconstruct interlinear with proper alignment
-    aligned_interlinear = reconstruct_interlinear_with_alignment(text, interlinear, language, entry_idx=data_entry_idx)
+    # For CJK languages (Japanese, Chinese), skip alignment/reconstruction since:
+    # - These languages don't have spaces between words
+    # - The LLM correctly segments text into words
+    # - The reconstruction logic is designed for space-delimited languages
+    is_cjk_language = language.name.lower() in ['japanese', 'chinese']
+    if is_cjk_language:
+        # Trust the LLM's segmentation directly
+        aligned_interlinear = interlinear
+    else:
+        aligned_interlinear = reconstruct_interlinear_with_alignment(text, interlinear, language, entry_idx=data_entry_idx)
 
     # Step 2: Process each entry
     for entry_idx, entry_data in enumerate(aligned_interlinear):
@@ -1523,15 +1623,28 @@ def processSourceInterlinearUnified(entry, stracker, language, data_entry_idx=No
                             parseinfo_entry = parse_entry
                             break
 
+        # Also try matching with hyphens stripped (for compound words)
+        if not parseinfo_entry and parsinginfo and '-' in word:
+            word_no_hyphens = word_for_parsing.replace('-', '').replace('-', '')
+            for parse_entry in parsinginfo:
+                if len(parse_entry) > 0:
+                    parse_word = ''.join(c for c in parse_entry[0] if c.isalnum() or c == '-')
+                    parse_no_hyphens = parse_word.replace('-', '')
+                    if parse_no_hyphens.lower() == word_no_hyphens.lower():
+                        parseinfo_entry = parse_entry
+                        break
+
+        compound_data = None
         if parseinfo_entry:
-            # parseinfo structure: [normalized_word, lemma, pos, grammar_dict_string]
+            # parseinfo structure: [normalized_word, lemma, pos, grammar_dict_string, ?compound_dict]
             if len(parseinfo_entry) > 3:
                 grammar = parseinfo_entry[3] if parseinfo_entry[3] else ""
             if len(parseinfo_entry) > 1:
                 dictionaryforms = parseinfo_entry[1] if parseinfo_entry[1] else ""
             if len(parseinfo_entry) > 2:
                 pos = str(parseinfo_entry[2]) if parseinfo_entry[2] else ""
-            # reading is not stored in parseinfo for Greek/Latin
+            if len(parseinfo_entry) > 4 and isinstance(parseinfo_entry[4], dict):
+                compound_data = parseinfo_entry[4]
         else:
             # Parse using language parser
             try:
@@ -1556,7 +1669,8 @@ def processSourceInterlinearUnified(entry, stracker, language, data_entry_idx=No
             word_id=word_id,
             sentence_id=sentence_id,
             language=language,
-            parseinfo=[(word_for_parsing, dictionaryforms.strip(), pos.strip(), grammar)] if grammar or dictionaryforms else None
+            parseinfo=[(word_for_parsing, dictionaryforms.strip(), pos.strip(), grammar)] if grammar or dictionaryforms else None,
+            compound_data=compound_data
         )
 
         sentence_store.sentences[sentence_id] = sentence_data
@@ -1902,7 +2016,7 @@ def processSourceInterlinearFirst(entry, stracker, language):
 
     return runninghtml, sentence_store
 
-def getHTML(word, gloss, word_id, sentence_id, language, parseinfo=None):
+def getHTML(word, gloss, word_id, sentence_id, language, parseinfo=None, compound_data=None):
     #Get all words for the gloss
     grammar = ""
     dictionaryforms = ""
@@ -1934,34 +2048,74 @@ def getHTML(word, gloss, word_id, sentence_id, language, parseinfo=None):
     else:
         word_with_ruby = word
 
-    # Get pinyin for Chinese
+    # Get pinyin for Chinese, Devanagari for Pali
     if language.name == "chinese":
+        reading = language.get_readings(word)
+    elif language.name == "Pali":
         reading = language.get_readings(word)
     else:
         reading = ""
 
-    # Simplify grammatical info for Latin and Greek
+    # Simplify grammatical info for Latin, Greek, and Pali
     is_greek = language.name.lower() in ['koine greek', 'ancient greek', 'greek']
-    if language.name == "latin" or is_greek:
+    is_pali = language.name == "Pali"
+    if language.name == "latin" or is_greek or is_pali:
         # Only simplify if grammar exists and is not empty/trivial
         if grammar and grammar.strip() and grammar.strip() != '{}':
             simplified_grammar = simplify_morphological_tag(grammar)
-            # Store full grammar in title, simplified in reading for display
-            reading = simplified_grammar if simplified_grammar else ""
+            grammar_simplified = simplified_grammar if simplified_grammar else ""
         else:
-            reading = ""
-
+            grammar_simplified = ""
+    else:
+        grammar_simplified = ""
 
     # For Greek/Latin, use grammar field instead of reading
     grammar_display = ""
-    if (language.name == "latin" or is_greek) and reading:
-        grammar_display = reading
-        reading = ""  # Clear reading for Greek/Latin
+    if (language.name == "latin" or is_greek) and grammar_simplified:
+        grammar_display = grammar_simplified
+    elif is_pali and grammar_simplified:
+        grammar_display = grammar_simplified
+
+    # Handle compound word rendering
+    compound_class = ""
+    compound_word_html = word_with_ruby
+    compound_breakdown_html = ""
+
+    if compound_data and 'parts' in compound_data and len(compound_data['parts']) > 1:
+        compound_class = " compound-word"
+        parts = compound_data['parts']
+        glosses = compound_data.get('glosses', [])
+
+        # Build inline word with visible hyphenated parts
+        part_spans = []
+        for i, part in enumerate(parts):
+            part_spans.append(f'<span class="compound-part">{part}</span>')
+            if i < len(parts) - 1:
+                part_spans.append('<span class="compound-sep">-</span>')
+        compound_word_html = ''.join(part_spans)
+
+        # Build breakdown div (shown on click)
+        breakdown_parts = []
+        for i, part in enumerate(parts):
+            part_gloss = glosses[i] if i < len(glosses) else ''
+            breakdown_parts.append(
+                f'<span class="cb-part">'
+                f'<span class="cb-stem">{part}</span>'
+                f'<span class="cb-gloss">{part_gloss}</span>'
+                f'</span>'
+            )
+        compound_breakdown_html = f'<div class="compound-breakdown">{"".join(breakdown_parts)}</div>'
+
+        # For Pali compounds, generate Devanagari for each part separately
+        if language.name == "Pali":
+            dev_parts = [language.get_readings(p) for p in parts]
+            reading = '-'.join(dev_parts)
 
     addhtml = f"""
-    <div class="word" title="{grammar}" data-word-id="{word_id}" data-sentence-id="{sentence_id}">
-        {word_with_ruby}
+    <div class="word{compound_class}" title="{grammar}" data-word-id="{word_id}" data-sentence-id="{sentence_id}">
+        {compound_word_html}
         <div class="gloss">{gloss}</div>
+        {compound_breakdown_html}
         <div class="alt">{""}</div>
         <div class="pos">{pos}</div>
         <div class="reading">{reading}</div>
@@ -2254,6 +2408,7 @@ def write_html_interlinear(jsonfile, htmltemplate, dir, textname, title, descrip
                 htmltext = htmltext.replace("{{full_translation}}", "")
 
         page_info = '<meta name="page_number" content="' + str(i) + '">'
+        page_info += '<meta name="text_name" content="' + textname + '">'
         # Use total_pages if provided, otherwise fall back to length of current text
         max_pages = total_pages if total_pages is not None else len(interlineartexts) + starting_page - 1
         if i < max_pages:
@@ -2496,6 +2651,63 @@ if __name__ == "__main__":
             starting_page=1
         )
 
+    elif len(sys.argv) > 1 and sys.argv[1] == "--ff6":
+        print("FINAL FANTASY 6 MODE: Processing FF6 Japanese dialogue with context headers")
+
+        write_html_interlinear(
+            "textcreation/texts/interlinearouts/interlinear_ff6_merged.json",
+            "textcreation/texts/templates/ff6template.html",
+            "app/templates/texts/",
+            "ff6",
+            "Final Fantasy VI",
+            "Final Fantasy VI - Japanese original with interlinear glosses",
+            Japanese(),
+            starting_page=1,
+            pagebreak=100,  # Larger page break to account for context entries
+            use_unified=True  # Use unified processor for proper handling
+        )
+
+        print("FF6 processing complete!")
+        print("  Check app/templates/texts/ff6/ for output files")
+
+        # Run automatic verification
+        run_automatic_verification(
+            json_path="textcreation/texts/interlinearouts/interlinear_ff6_merged.json",
+            html_dir="app/templates/texts/ff6/",
+            text_name="ff6",
+            starting_page=1
+        )
+
+    elif len(sys.argv) > 1 and sys.argv[1] == "--pierremenard":
+        print("PIERRE MENARD MODE: Processing Pierre Menard, autor del Quijote")
+
+        # Create output directory if it doesn't exist
+        os.makedirs("app/templates/texts/pierremenard/", exist_ok=True)
+        os.makedirs("app/templates/texts/pierremenard/sentence_stores/", exist_ok=True)
+
+        write_html_interlinear(
+            "textcreation/texts/interlinearouts/interlinear_pierremenard.json",
+            "textcreation/texts/templates/grammar_with_translation.html",
+            "app/templates/texts/",
+            "pierremenard",
+            "Pierre Menard, autor del Quijote",
+            "Jorge Luis Borges — Ficciones (1944)",
+            Spanish(),
+            starting_page=1,
+            pagebreak=30,
+            use_unified=True
+        )
+        print("✓ Pierre Menard processing complete!")
+        print("  Check app/templates/texts/pierremenard/ for output files")
+
+        # Run automatic verification
+        run_automatic_verification(
+            json_path="textcreation/texts/interlinearouts/interlinear_pierremenard.json",
+            html_dir="app/templates/texts/pierremenard/",
+            text_name="pierremenard",
+            starting_page=1
+        )
+
     elif len(sys.argv) > 1 and sys.argv[1] == "--perec":
         print("PEREC MODE: Processing Tentative d'épuisement d'un lieu parisien")
         print("Using chapter markers for page breaks (sections I, II, III, etc.)")
@@ -2526,6 +2738,96 @@ if __name__ == "__main__":
             json_path="textcreation/texts/interlinearouts/interlinear_perec.json",
             html_dir="app/templates/texts/perec/",
             text_name="perec",
+            starting_page=1
+        )
+
+    elif len(sys.argv) > 1 and sys.argv[1] == "--pierremenard":
+        print("PIERRE MENARD MODE: Processing Pierre Menard, autor del Quijote")
+
+        # Create output directory if it doesn't exist
+        os.makedirs("app/templates/texts/pierremenard/", exist_ok=True)
+        os.makedirs("app/templates/texts/pierremenard/sentence_stores/", exist_ok=True)
+
+        write_html_interlinear(
+            "textcreation/texts/interlinearouts/interlinear_pierremenard.json",
+            "textcreation/texts/templates/grammar_with_translation.html",
+            "app/templates/texts/",
+            "pierremenard",
+            "Pierre Menard, autor del Quijote",
+            "Jorge Luis Borges — Ficciones (1944)",
+            Spanish(),
+            starting_page=1,
+            pagebreak=30,
+            use_unified=True
+        )
+        print("✓ Pierre Menard processing complete!")
+        print("  Check app/templates/texts/pierremenard/ for output files")
+
+        # Run automatic verification
+        run_automatic_verification(
+            json_path="textcreation/texts/interlinearouts/interlinear_pierremenard.json",
+            html_dir="app/templates/texts/pierremenard/",
+            text_name="pierremenard",
+            starting_page=1
+        )
+
+    elif len(sys.argv) > 1 and sys.argv[1] == "--mn2":
+        print("MN2 MODE: Processing Sabbāsavasutta (MN 2) in Pali")
+        from languages.pali import Pali
+
+        # Create output directories
+        os.makedirs("app/templates/texts/mn2/", exist_ok=True)
+        os.makedirs("app/templates/texts/mn2/sentence_stores/", exist_ok=True)
+
+        write_html_interlinear(
+            "textcreation/texts/interlinearouts/interlinear_mn2.json",
+            "textcreation/texts/templates/palitemplate.html",
+            "app/templates/texts/",
+            "mn2",
+            "Sabbāsavasutta (MN 2)",
+            "All the Defilements — Majjhima Nikāya 2",
+            Pali(),
+            starting_page=1,
+            pagebreak=100,  # Single page for this sutta
+            use_unified=True
+        )
+        print("✓ MN 2 processing complete!")
+        print("  Check app/templates/texts/mn2/ for output files")
+
+        # Run automatic verification
+        run_automatic_verification(
+            json_path="textcreation/texts/interlinearouts/interlinear_mn2.json",
+            html_dir="app/templates/texts/mn2/",
+            text_name="mn2",
+            starting_page=1
+        )
+
+    elif len(sys.argv) > 1 and sys.argv[1] == "--mn21":
+        print("MN21 MODE: Processing Kakacūpamasutta (MN 21) in Pali")
+        from languages.pali import Pali
+
+        os.makedirs("app/templates/texts/mn21/", exist_ok=True)
+        os.makedirs("app/templates/texts/mn21/sentence_stores/", exist_ok=True)
+
+        write_html_interlinear(
+            "textcreation/texts/interlinearouts/interlinear_mn21.json",
+            "textcreation/texts/templates/palitemplate.html",
+            "app/templates/texts/",
+            "mn21",
+            "Kakacūpamasutta (MN 21)",
+            "The Simile of the Saw — Majjhima Nikāya 21",
+            Pali(),
+            starting_page=1,
+            pagebreak=100,
+            use_unified=True
+        )
+        print("✓ MN 21 processing complete!")
+        print("  Check app/templates/texts/mn21/ for output files")
+
+        run_automatic_verification(
+            json_path="textcreation/texts/interlinearouts/interlinear_mn21.json",
+            html_dir="app/templates/texts/mn21/",
+            text_name="mn21",
             starting_page=1
         )
 
